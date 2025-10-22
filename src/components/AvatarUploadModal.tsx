@@ -150,7 +150,7 @@ export default function AvatarUploadModal({
         }
         
         // Show success message for face detection
-        toast.success('✅ Face detected in image!');
+        //toast.success('✅ Face detected in image!');
       } catch (error) {
         console.warn('Face validation failed:', error);
         setIsValidatingFace(false);
