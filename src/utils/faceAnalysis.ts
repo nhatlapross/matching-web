@@ -14,6 +14,18 @@ export interface FaceFeatures {
   faceHeight: number
   faceRatio: number // height/width
 
+  // Tam Đình (Ba Vùng Khuôn Mặt) - Phân tích tướng học truyền thống
+  tamDinh: {
+    thuongDinhHeight: number // Thượng Đình - Trán (15-30 tuổi)
+    trungDinhHeight: number // Trung Đình - Giữa mặt (31-50 tuổi)
+    haDinhHeight: number // Hạ Đình - Hàm (51+ tuổi)
+    thuongDinhRatio: number // Tỷ lệ Thượng Đình / tổng
+    trungDinhRatio: number // Tỷ lệ Trung Đình / tổng
+    haDinhRatio: number // Tỷ lệ Hạ Đình / tổng
+    balance: number // Điểm cân bằng (0-100)
+    interpretation: string // Giải thích ngắn
+  }
+
   // Trán (Forehead)
   foreheadHeight: number
   foreheadWidth: number
@@ -233,6 +245,113 @@ function calculateGoldenRatio(
 }
 
 /**
+ * Calculate centroid (average point) from a set of landmarks
+ */
+function calculateCentroid(landmarks: { x: number; y: number; z: number }[], indices: number[]): { x: number; y: number } {
+  let sumX = 0
+  let sumY = 0
+  let count = 0
+
+  indices.forEach(idx => {
+    if (idx >= 0 && idx < landmarks.length) {
+      sumX += landmarks[idx].x
+      sumY += landmarks[idx].y
+      count++
+    }
+  })
+
+  return {
+    x: count > 0 ? sumX / count : 0,
+    y: count > 0 ? sumY / count : 0
+  }
+}
+
+/**
+ * Calculate Tam Đình (Three Face Regions) according to traditional physiognomy
+ * Thượng Đình (Upper): Hairline to eyebrows - Youth phase (15-30 years)
+ * Trung Đình (Middle): Eyebrows to nose base - Middle age (31-50 years)
+ * Hạ Đình (Lower): Nose base to chin - Later years (51+ years)
+ */
+function calculateTamDinh(landmarks: { x: number; y: number; z: number }[]): FaceFeatures['tamDinh'] {
+  // Thượng Đình boundaries
+  // Top: Hairline approximation (landmark #10 and nearby)
+  const thuongDinhTop = calculateCentroid(landmarks, [10, 338, 297, 332])
+  // Bottom: Eyebrow line
+  const thuongDinhBottom = calculateCentroid(landmarks, [70, 63, 105, 66, 107, 336, 296, 334, 293, 300])
+
+  // Trung Đình boundaries
+  // Top: Same as Thượng Đình bottom (eyebrow line)
+  const trungDinhTop = thuongDinhBottom
+  // Bottom: Nose base (subnasale)
+  const trungDinhBottom = calculateCentroid(landmarks, [2, 94, 324])
+
+  // Hạ Đình boundaries
+  // Top: Same as Trung Đình bottom (nose base)
+  const haDinhTop = trungDinhBottom
+  // Bottom: Chin tip
+  const haDinhBottom = { x: landmarks[152].x, y: landmarks[152].y }
+
+  // Calculate heights
+  const thuongDinhHeight = Math.abs(thuongDinhTop.y - thuongDinhBottom.y)
+  const trungDinhHeight = Math.abs(trungDinhTop.y - trungDinhBottom.y)
+  const haDinhHeight = Math.abs(haDinhTop.y - haDinhBottom.y)
+  const totalHeight = thuongDinhHeight + trungDinhHeight + haDinhHeight
+
+  // Calculate ratios
+  const thuongDinhRatio = safeDivide(thuongDinhHeight, totalHeight, 0.33)
+  const trungDinhRatio = safeDivide(trungDinhHeight, totalHeight, 0.33)
+  const haDinhRatio = safeDivide(haDinhHeight, totalHeight, 0.34)
+
+  // Calculate balance score (ideal is 1:1:1 ratio, or 33.3% each)
+  const idealRatio = 0.333
+  const deviation1 = Math.abs(thuongDinhRatio - idealRatio)
+  const deviation2 = Math.abs(trungDinhRatio - idealRatio)
+  const deviation3 = Math.abs(haDinhRatio - idealRatio)
+  const avgDeviation = (deviation1 + deviation2 + deviation3) / 3
+  const balance = clamp(100 - (avgDeviation * 300), 0, 100)
+
+  // Interpretation based on ratios
+  let interpretation = ''
+  if (balance >= 85) {
+    interpretation = 'Ba vùng cân đối tuyệt vời - Vận mệnh hài hòa qua các giai đoạn cuộc đời'
+  } else if (balance >= 70) {
+    interpretation = 'Ba vùng cân đối tốt - Cuộc sống ổn định và phát triển đều'
+  } else {
+    // Identify dominant region
+    if (thuongDinhRatio > trungDinhRatio && thuongDinhRatio > haDinhRatio) {
+      interpretation = 'Thượng Đình phát triển - Trí tuệ, vận may thời trẻ tốt'
+    } else if (trungDinhRatio > thuongDinhRatio && trungDinhRatio > haDinhRatio) {
+      interpretation = 'Trung Đình phát triển - Sự nghiệp trung niên thịnh vượng'
+    } else {
+      interpretation = 'Hạ Đình phát triển - Hậu vận tốt, cuối đời an nhàn'
+    }
+  }
+
+  console.log('Tam Đình analysis:', {
+    thuongDinhHeight,
+    trungDinhHeight,
+    haDinhHeight,
+    totalHeight,
+    thuongDinhRatio: (thuongDinhRatio * 100).toFixed(1) + '%',
+    trungDinhRatio: (trungDinhRatio * 100).toFixed(1) + '%',
+    haDinhRatio: (haDinhRatio * 100).toFixed(1) + '%',
+    balance: balance.toFixed(1),
+    interpretation
+  })
+
+  return {
+    thuongDinhHeight,
+    trungDinhHeight,
+    haDinhHeight,
+    thuongDinhRatio,
+    trungDinhRatio,
+    haDinhRatio,
+    balance,
+    interpretation
+  }
+}
+
+/**
  * Extract all facial features from MediaPipe landmarks
  */
 export function extractFaceFeatures(
@@ -317,6 +436,9 @@ export function extractFaceFeatures(
     cheekboneWidth
   )
 
+  // Calculate Tam Đình (Three Face Regions)
+  const tamDinh = calculateTamDinh(landmarks)
+
   // Calculate scores
   const facialSymmetry = calculateSymmetry(landmarks)
   const goldenRatioScore = calculateGoldenRatio(
@@ -335,6 +457,7 @@ export function extractFaceFeatures(
     faceWidth,
     faceHeight,
     faceRatio: safeDivide(faceHeight, faceWidth, 1.3),
+    tamDinh,
     foreheadHeight,
     foreheadWidth,
     foreheadRatio: safeDivide(foreheadHeight, foreheadWidth, 1.0),
@@ -366,23 +489,30 @@ export function extractFaceFeatures(
  * Load MediaPipe Face Mesh
  */
 export async function loadFaceMesh() {
-  // Dynamic import to avoid SSR issues
-  const { FaceMesh } = await import('@mediapipe/face_mesh')
+  try {
+    // Dynamic import to avoid SSR issues
+    const faceMeshModule = await import('@mediapipe/face_mesh')
+    const FaceMesh = faceMeshModule.FaceMesh
 
-  const faceMesh = new FaceMesh({
-    locateFile: (file) => {
-      return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
-    },
-  })
+    const faceMesh = new FaceMesh({
+      locateFile: (file: string) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+      },
+    })
 
-  faceMesh.setOptions({
-    maxNumFaces: 1,
-    refineLandmarks: true, // Enable refined landmarks for better accuracy
-    minDetectionConfidence: 0.5,
-    minTrackingConfidence: 0.5,
-  })
+    faceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5,
+    })
 
-  return faceMesh
+    console.log('MediaPipe Face Mesh loaded successfully')
+    return faceMesh
+  } catch (error) {
+    console.error('Failed to load MediaPipe:', error)
+    throw error
+  }
 }
 
 /**
@@ -392,11 +522,17 @@ export async function analyzeFaceFromImage(
   imageElement: HTMLImageElement,
   faceMesh: any
 ): Promise<FaceFeatures | null> {
-  return new Promise((resolve) => {
-    // Set up callback for results
-    faceMesh.onResults((results: any) => {
+  return new Promise((resolve, reject) => {
+    let resolved = false
+
+    // Set up one-time callback for results
+    const onResults = (results: any) => {
+      if (resolved) return // Prevent multiple resolutions
+      resolved = true
+
       try {
         if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
+          console.log('No face detected by MediaPipe')
           resolve(null)
           return
         }
@@ -405,13 +541,14 @@ export async function analyzeFaceFromImage(
         const faceLandmarks = results.multiFaceLandmarks[0]
 
         // Convert MediaPipe normalized coordinates to pixel coordinates
+        // Use naturalWidth/naturalHeight for accurate dimensions
         const landmarks: { x: number; y: number; z: number }[] = faceLandmarks.map((landmark: any) => ({
-          x: landmark.x * imageElement.width,
-          y: landmark.y * imageElement.height,
-          z: landmark.z * imageElement.width, // Scale z to image width
+          x: landmark.x * imageElement.naturalWidth,
+          y: landmark.y * imageElement.naturalHeight,
+          z: landmark.z * imageElement.naturalWidth, // Scale z to image width
         }))
 
-        console.log('MediaPipe detected 468 landmarks with 3D coordinates')
+        console.log(`MediaPipe detected ${landmarks.length} landmarks with 3D coordinates`)
 
         // Extract features from 468 landmarks
         const features = extractFaceFeatures(landmarks)
@@ -421,9 +558,35 @@ export async function analyzeFaceFromImage(
         console.error('Error processing MediaPipe results:', error)
         resolve(null)
       }
-    })
+    }
 
-    // Send image to MediaPipe
-    faceMesh.send({ image: imageElement })
+    // Set callback
+    faceMesh.onResults(onResults)
+
+    // Send image to MediaPipe with error handling
+    try {
+      faceMesh.send({ image: imageElement }).catch((err: any) => {
+        if (!resolved) {
+          resolved = true
+          console.error('MediaPipe send error:', err)
+          reject(err)
+        }
+      })
+
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        if (!resolved) {
+          resolved = true
+          console.error('MediaPipe analysis timeout')
+          resolve(null)
+        }
+      }, 10000)
+    } catch (error) {
+      if (!resolved) {
+        resolved = true
+        console.error('Error sending image to MediaPipe:', error)
+        reject(error)
+      }
+    }
   })
 }

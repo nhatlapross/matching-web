@@ -16,8 +16,8 @@ import {
   Tooltip,
   Legend,
 } from 'recharts'
-import { FaceFeatures } from '@/utils/faceAnalysis'
-import { PhysiognomyTraits } from '@/utils/physiognomy'
+import { type FaceFeatures } from '@/utils/faceAnalysis'
+import { type PhysiognomyTraits } from '@/utils/physiognomy'
 import { User, Brain, Heart, Sparkles, TrendingUp } from 'lucide-react'
 
 interface ResultsDisplayProps {
@@ -74,7 +74,7 @@ export default function ResultsDisplay({
                 className="w-full h-auto rounded-lg shadow-lg border-2 border-purple-200"
               />
               <div className="absolute top-2 left-2 bg-black/70 text-white px-3 py-1 rounded-full text-xs">
-                68-point Facial Landmarks
+                468-point MediaPipe Face Mesh (3D)
               </div>
             </div>
           </div>
@@ -180,6 +180,190 @@ export default function ResultsDisplay({
                 color="success"
                 className="max-w-full"
               />
+            </div>
+          </div>
+        </CardBody>
+      </Card>
+
+      {/* Tam Đình (Three Face Regions) */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <User className="w-5 h-5 text-purple-500" />
+            <h3 className="text-lg font-semibold">Tam Đình - Ba Vùng Khuôn Mặt</h3>
+          </div>
+        </CardHeader>
+        <CardBody className="gap-4">
+          <div className="bg-purple-50 dark:bg-purple-950/20 p-4 rounded-lg mb-4">
+            <p className="text-sm text-purple-900 dark:text-purple-100 font-medium mb-2">
+              {features.tamDinh.interpretation}
+            </p>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-purple-700 dark:text-purple-300">
+                Điểm cân bằng:
+              </span>
+              <Progress
+                value={features.tamDinh.balance}
+                color="secondary"
+                className="flex-1"
+                size="sm"
+              />
+              <span className="text-xs font-medium text-purple-700 dark:text-purple-300">
+                {Math.round(features.tamDinh.balance)}%
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Thượng Đình */}
+            <div className="border-2 border-primary rounded-lg p-4">
+              <h4 className="font-semibold text-primary mb-2">Thượng Đình</h4>
+              <p className="text-xs text-default-600 mb-3">
+                Trán • Tuổi trẻ (15-30)
+              </p>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Tỷ lệ:</span>
+                  <span className="font-medium">
+                    {(features.tamDinh.thuongDinhRatio * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <Progress
+                  value={features.tamDinh.thuongDinhRatio * 100}
+                  color="primary"
+                  className="max-w-full"
+                  size="sm"
+                />
+                <p className="text-xs text-default-500 mt-2">
+                  Thể hiện trí tuệ, vận may thời trẻ và tiềm năng lãnh đạo
+                </p>
+              </div>
+            </div>
+
+            {/* Trung Đình */}
+            <div className="border-2 border-secondary rounded-lg p-4">
+              <h4 className="font-semibold text-secondary mb-2">Trung Đình</h4>
+              <p className="text-xs text-default-600 mb-3">
+                Mắt-Mũi • Trung niên (31-50)
+              </p>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Tỷ lệ:</span>
+                  <span className="font-medium">
+                    {(features.tamDinh.trungDinhRatio * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <Progress
+                  value={features.tamDinh.trungDinhRatio * 100}
+                  color="secondary"
+                  className="max-w-full"
+                  size="sm"
+                />
+                <p className="text-xs text-default-500 mt-2">
+                  Thể hiện ý chí, sự nghiệp và phát triển trung niên
+                </p>
+              </div>
+            </div>
+
+            {/* Hạ Đình */}
+            <div className="border-2 border-success rounded-lg p-4">
+              <h4 className="font-semibold text-success mb-2">Hạ Đình</h4>
+              <p className="text-xs text-default-600 mb-3">
+                Miệng-Hàm • Tuổi già (51+)
+              </p>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Tỷ lệ:</span>
+                  <span className="font-medium">
+                    {(features.tamDinh.haDinhRatio * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <Progress
+                  value={features.tamDinh.haDinhRatio * 100}
+                  color="success"
+                  className="max-w-full"
+                  size="sm"
+                />
+                <p className="text-xs text-default-500 mt-2">
+                  Thể hiện các mối quan hệ, sức khỏe và hậu vận
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-default-100 dark:bg-default-50/5 rounded-lg p-3 text-xs text-default-600">
+            <p className="font-medium mb-1">💡 Giải thích Tam Đình:</p>
+            <p>
+              Tam Đình (三停) là nguyên tắc chia khuôn mặt thành ba vùng theo chiều dọc,
+              mỗi vùng thể hiện một giai đoạn cuộc đời. Tỷ lệ lý tưởng là 1:1:1 (33.3% mỗi vùng),
+              cho thấy vận mệnh hài hòa và phát triển đều qua các giai đoạn.
+            </p>
+          </div>
+        </CardBody>
+      </Card>
+
+      {/* Ngũ Quan (Five Features) */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-cyan-500" />
+            <h3 className="text-lg font-semibold">Ngũ Quan - Năm Quan Trọng</h3>
+          </div>
+        </CardHeader>
+        <CardBody className="gap-4">
+          <div className="bg-cyan-50 dark:bg-cyan-950/20 p-3 rounded-lg text-xs">
+            <p className="font-medium mb-1">📖 Ngũ Quan là gì?</p>
+            <p className="text-default-600">
+              Ngũ Quan (五官) là năm bộ phận quan trọng nhất trên khuôn mặt theo tướng học:
+              Mắt (thần khí), Lông mày (quan hệ), Mũi (tài lộc), Miệng (giao tiếp), và Tai (tuổi thọ).
+              Mỗi quan đại diện cho một khía cạnh khác nhau của cuộc đời và tính cách.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            {/* Mắt - Giám Sát Quan */}
+            <div className="border-l-4 border-cyan-500 pl-4">
+              <h4 className="font-semibold text-cyan-700 dark:text-cyan-300 mb-1 flex items-center gap-2">
+                👁️ Mắt (Giám Sát Quan)
+                <span className="text-xs font-normal text-default-500">Thần khí & Tính cách</span>
+              </h4>
+              <p className="text-sm text-default-700">{traits.nguQuan.eyes}</p>
+            </div>
+
+            {/* Lông Mày - Bảo Thọ Quan */}
+            <div className="border-l-4 border-blue-500 pl-4">
+              <h4 className="font-semibold text-blue-700 dark:text-blue-300 mb-1 flex items-center gap-2">
+                🦋 Lông Mày (Bảo Thọ Quan)
+                <span className="text-xs font-normal text-default-500">Quan hệ & Tính khí</span>
+              </h4>
+              <p className="text-sm text-default-700">{traits.nguQuan.eyebrows}</p>
+            </div>
+
+            {/* Mũi - Thẩm Biện Quan */}
+            <div className="border-l-4 border-yellow-500 pl-4">
+              <h4 className="font-semibold text-yellow-700 dark:text-yellow-300 mb-1 flex items-center gap-2">
+                👃 Mũi (Thẩm Biện Quan)
+                <span className="text-xs font-normal text-default-500">Tài lộc & Quyết tâm</span>
+              </h4>
+              <p className="text-sm text-default-700">{traits.nguQuan.nose}</p>
+            </div>
+
+            {/* Miệng - Xuất Nạp Quan */}
+            <div className="border-l-4 border-pink-500 pl-4">
+              <h4 className="font-semibold text-pink-700 dark:text-pink-300 mb-1 flex items-center gap-2">
+                💋 Miệng (Xuất Nạp Quan)
+                <span className="text-xs font-normal text-default-500">Giao tiếp & Quan hệ</span>
+              </h4>
+              <p className="text-sm text-default-700">{traits.nguQuan.mouth}</p>
+            </div>
+
+            {/* Tai - Thái Thính Quan */}
+            <div className="border-l-4 border-green-500 pl-4">
+              <h4 className="font-semibold text-green-700 dark:text-green-300 mb-1 flex items-center gap-2">
+                👂 Tai (Thái Thính Quan)
+                <span className="text-xs font-normal text-default-500">Tuổi thọ & Vận sớm</span>
+              </h4>
+              <p className="text-sm text-default-700">{traits.nguQuan.ears}</p>
             </div>
           </div>
         </CardBody>

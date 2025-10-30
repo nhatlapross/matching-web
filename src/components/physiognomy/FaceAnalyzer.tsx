@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react'
 import { Card, CardBody, Button } from '@nextui-org/react'
 import { Upload, X, Sparkles } from 'lucide-react'
-import { FaceFeatures, loadFaceMesh, analyzeFaceFromImage } from '@/utils/faceAnalysis'
-import { PhysiognomyTraits, analyzePhysiognomy } from '@/utils/physiognomy'
+import { loadFaceMesh, analyzeFaceFromImage } from '@/utils/faceAnalysis'
+import type { FaceFeatures } from '@/utils/faceAnalysis'
+import { analyzePhysiognomy } from '@/utils/physiognomy'
+import type { PhysiognomyTraits } from '@/utils/physiognomy'
 import LoadingState from '@/components/LoadingState'
 
 interface FaceAnalyzerProps {
@@ -15,13 +17,22 @@ interface FaceAnalyzerProps {
   ) => void
   title?: string
   personNumber?: number
+  compatibilityMode?: boolean // New prop to hide analyze button in compatibility mode
+  onImageSelected?: (imageUrl: string) => void // Callback when image is uploaded
 }
 
-export default function FaceAnalyzer({
+export interface FaceAnalyzerHandle {
+  analyze: () => Promise<void>
+  hasImage: () => boolean
+}
+
+const FaceAnalyzer = forwardRef<FaceAnalyzerHandle, FaceAnalyzerProps>(({
   onAnalysisComplete,
   title = 'Upload Image',
   personNumber,
-}: FaceAnalyzerProps) {
+  compatibilityMode = false,
+  onImageSelected,
+}, ref) => {
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isModelLoading, setIsModelLoading] = useState(false)
@@ -29,10 +40,21 @@ export default function FaceAnalyzer({
   const [faceMesh, setFaceMesh] = useState<any>(null)
   const [showLandmarks, setShowLandmarks] = useState(false)
   const [landmarks, setLandmarks] = useState<any[]>([])
+  const [isAnalyzed, setIsAnalyzed] = useState(false)
 
   const imageRef = useRef<HTMLImageElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Expose methods to parent component via ref
+  useImperativeHandle(ref, () => ({
+    analyze: async () => {
+      await handleAnalyze()
+    },
+    hasImage: () => {
+      return imageUrl !== null
+    }
+  }))
 
   // Load MediaPipe Face Mesh on mount
   useEffect(() => {
@@ -70,6 +92,11 @@ export default function FaceAnalyzer({
       const url = URL.createObjectURL(file)
       setImageUrl(url)
       setError(null)
+
+      // Notify parent about image selection in compatibility mode
+      if (compatibilityMode && onImageSelected) {
+        onImageSelected(url)
+      }
     }
   }
 
@@ -79,15 +106,20 @@ export default function FaceAnalyzer({
     const canvas = canvasRef.current
     const img = imageRef.current
 
-    // Set canvas size to match image
-    canvas.width = img.width
-    canvas.height = img.height
+    // IMPORTANT: Use natural dimensions, not displayed dimensions
+    canvas.width = img.naturalWidth
+    canvas.height = img.naturalHeight
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // Draw image
-    ctx.drawImage(img, 0, 0)
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+    // Draw image at full resolution
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+
+    console.log(`Drawing ${detectedLandmarks.length} landmarks on canvas ${canvas.width}x${canvas.height}`)
 
     // MediaPipe Face Mesh contours
     const FACE_OVAL = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109]
@@ -186,14 +218,28 @@ export default function FaceAnalyzer({
     })
     ctx.stroke()
 
-    // Draw key points
+    // Draw ALL 468 landmarks as small dots
+    ctx.fillStyle = 'rgba(0, 255, 0, 0.4)'
+    detectedLandmarks.forEach((point: any, idx: number) => {
+      ctx.beginPath()
+      ctx.arc(point.x, point.y, 1.5, 0, 2 * Math.PI)
+      ctx.fill()
+    })
+
+    // Draw key points larger and brighter
     ctx.fillStyle = 'rgba(0, 255, 0, 0.9)'
     const keyPoints = [10, 152, 234, 454, 6, 1, 4, 33, 263, 61, 291]
     keyPoints.forEach((idx) => {
       const point = detectedLandmarks[idx]
       ctx.beginPath()
-      ctx.arc(point.x, point.y, 4, 0, 2 * Math.PI)
+      ctx.arc(point.x, point.y, 5, 0, 2 * Math.PI)
       ctx.fill()
+
+      // Add index label for key points
+      ctx.fillStyle = 'white'
+      ctx.font = 'bold 10px Arial'
+      ctx.fillText(idx.toString(), point.x + 7, point.y - 7)
+      ctx.fillStyle = 'rgba(0, 255, 0, 0.9)'
     })
 
     // Add labels
@@ -228,53 +274,52 @@ export default function FaceAnalyzer({
     setError(null)
 
     try {
-      // Set up MediaPipe callback to get landmarks
+      console.log('Starting MediaPipe analysis...')
+
+      // Analyze face using MediaPipe (this handles onResults internally)
+      const features = await analyzeFaceFromImage(imageRef.current, faceMesh)
+
+      if (!features) {
+        setError('Không phát hiện khuôn mặt trong ảnh. Vui lòng thử ảnh khác với khuôn mặt rõ ràng hơn.')
+        setIsLoading(false)
+        return
+      }
+
+      console.log('Face features extracted:', features)
+
+      // Get landmarks for visualization by sending image again
       faceMesh.onResults((results: any) => {
-        if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
-          setError('Không phát hiện khuôn mặt trong ảnh. Vui lòng thử ảnh khác với khuôn mặt rõ ràng hơn.')
-          setIsLoading(false)
-          return
+        if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+          const faceLandmarks = results.multiFaceLandmarks[0]
+          // Use naturalWidth/Height for accurate coordinates
+          const pixelLandmarks = faceLandmarks.map((landmark: any) => ({
+            x: landmark.x * imageRef.current!.naturalWidth,
+            y: landmark.y * imageRef.current!.naturalHeight,
+            z: landmark.z * imageRef.current!.naturalWidth,
+          }))
+          console.log(`Got ${pixelLandmarks.length} landmarks from MediaPipe`)
+          setLandmarks(pixelLandmarks)
+          drawLandmarks(pixelLandmarks)
         }
-
-        // Get landmarks in pixel coordinates
-        const faceLandmarks = results.multiFaceLandmarks[0]
-        const pixelLandmarks = faceLandmarks.map((landmark: any) => ({
-          x: landmark.x * imageRef.current!.width,
-          y: landmark.y * imageRef.current!.height,
-          z: landmark.z * imageRef.current!.width,
-        }))
-
-        // Save landmarks for drawing
-        setLandmarks(pixelLandmarks)
-
-        // Draw landmarks
-        drawLandmarks(pixelLandmarks)
-
-        // Continue with analysis
-        analyzeFaceFromImage(imageRef.current!, faceMesh).then((features) => {
-          if (!features) {
-            setError('Lỗi khi phân tích khuôn mặt. Vui lòng thử lại.')
-            setIsLoading(false)
-            return
-          }
-
-          // Analyze physiognomy
-          const traits = analyzePhysiognomy(features)
-
-          // Get canvas image with landmarks
-          const landmarkImageUrl = canvasRef.current?.toDataURL('image/png') || imageUrl!
-
-          // Call parent callback with landmark image
-          onAnalysisComplete(features, traits, landmarkImageUrl)
-          setIsLoading(false)
-        })
       })
-
-      // Send image to MediaPipe
       await faceMesh.send({ image: imageRef.current })
+
+      // Analyze physiognomy
+      const traits = analyzePhysiognomy(features)
+
+      // Wait a bit for canvas to finish drawing
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // Get canvas image with landmarks
+      const landmarkImageUrl = canvasRef.current?.toDataURL('image/png') || imageUrl!
+
+      // Call parent callback with landmark image
+      onAnalysisComplete(features, traits, landmarkImageUrl)
+      setIsAnalyzed(true)
     } catch (err) {
       console.error('Analysis error:', err)
-      setError('An error occurred during analysis. Please try again.')
+      setError('Đã xảy ra lỗi khi phân tích. Vui lòng thử lại.')
+    } finally {
       setIsLoading(false)
     }
   }
@@ -283,6 +328,7 @@ export default function FaceAnalyzer({
     setImageUrl(null)
     setError(null)
     setShowLandmarks(false)
+    setIsAnalyzed(false)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -302,12 +348,20 @@ export default function FaceAnalyzer({
     <Card className="w-full">
       <CardBody className="gap-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">
-            {title}
-            {personNumber && (
-              <span className="ml-2 text-primary">#{personNumber}</span>
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold">
+              {title}
+              {personNumber && (
+                <span className="ml-2 text-primary">#{personNumber}</span>
+              )}
+            </h3>
+            {isAnalyzed && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-success-100 text-success-700 text-xs font-medium">
+                <Sparkles className="w-3 h-3" />
+                Đã phân tích
+              </span>
             )}
-          </h3>
+          </div>
           {imageUrl && (
             <Button
               size="sm"
@@ -316,7 +370,7 @@ export default function FaceAnalyzer({
               startContent={<X className="w-4 h-4" />}
               onPress={handleRemoveImage}
             >
-              Remove
+              {isAnalyzed ? 'Upload lại' : 'Remove'}
             </Button>
           )}
         </div>
@@ -372,18 +426,33 @@ export default function FaceAnalyzer({
               </Button>
             )}
 
-            {/* Analyze Button */}
-            <Button
-              size="lg"
-              color="primary"
-              variant="shadow"
-              startContent={<Sparkles className="w-5 h-5" />}
-              onPress={handleAnalyze}
-              isLoading={isLoading}
-              className="w-full"
-            >
-              {isLoading ? 'Analyzing...' : 'Analyze Face'}
-            </Button>
+            {/* Analyze Button - only show if not in compatibility mode */}
+            {!compatibilityMode && (
+              <Button
+                size="lg"
+                color={isAnalyzed ? "success" : "primary"}
+                variant={isAnalyzed ? "flat" : "shadow"}
+                startContent={<Sparkles className="w-5 h-5" />}
+                onPress={handleAnalyze}
+                isLoading={isLoading}
+                isDisabled={isAnalyzed}
+                className="w-full"
+              >
+                {isLoading ? 'Đang phân tích...' : isAnalyzed ? '✓ Đã phân tích xong' : 'Phân tích khuôn mặt'}
+              </Button>
+            )}
+
+            {/* Success message after analysis */}
+            {!compatibilityMode && isAnalyzed && (
+              <div className="bg-success-50 border border-success-200 rounded-lg p-3 text-center">
+                <p className="text-success-700 text-sm font-medium">
+                  ✓ Khuôn mặt đã được phân tích thành công!
+                </p>
+                <p className="text-success-600 text-xs mt-1">
+                  Hãy cuộn xuống để xem kết quả phân tích.
+                </p>
+              </div>
+            )}
           </>
         )}
 
@@ -407,4 +476,8 @@ export default function FaceAnalyzer({
       </CardBody>
     </Card>
   )
-}
+})
+
+FaceAnalyzer.displayName = 'FaceAnalyzer'
+
+export default FaceAnalyzer

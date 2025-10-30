@@ -1,15 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Card, CardBody, Button, Tabs, Tab } from '@nextui-org/react'
 import { Sparkles, Users, User as UserIcon } from 'lucide-react'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
-import FaceAnalyzer from '@/components/physiognomy/FaceAnalyzer'
+import FaceAnalyzer, { type FaceAnalyzerHandle } from '@/components/physiognomy/FaceAnalyzer'
 import ResultsDisplay from '@/components/physiognomy/ResultsDisplay'
 import CompatibilityDisplay from '@/components/physiognomy/CompatibilityDisplay'
-import { FaceFeatures } from '@/utils/faceAnalysis'
-import { PhysiognomyTraits } from '@/utils/physiognomy'
-import { calculateCompatibility, CompatibilityResult } from '@/utils/compatibility'
+import { type FaceFeatures } from '@/utils/faceAnalysis'
+import { type PhysiognomyTraits } from '@/utils/physiognomy'
+import { calculateCompatibility, type CompatibilityResult } from '@/utils/compatibility'
 
 interface AnalysisData {
   features: FaceFeatures
@@ -25,6 +25,13 @@ function PhysiognomyPage() {
   const [person2Data, setPerson2Data] = useState<AnalysisData | null>(null)
   const [compatibilityResult, setCompatibilityResult] =
     useState<CompatibilityResult | null>(null)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [person1ImageReady, setPerson1ImageReady] = useState(false)
+  const [person2ImageReady, setPerson2ImageReady] = useState(false)
+
+  // Refs for FaceAnalyzer components in compatibility mode
+  const person1AnalyzerRef = useRef<FaceAnalyzerHandle>(null)
+  const person2AnalyzerRef = useRef<FaceAnalyzerHandle>(null)
 
   const handlePerson1Analysis = (
     features: FaceFeatures,
@@ -32,17 +39,7 @@ function PhysiognomyPage() {
     imageUrl: string
   ) => {
     setPerson1Data({ features, traits, imageUrl })
-
-    // If in compatibility mode and person 2 is already analyzed, calculate compatibility
-    if (mode === 'compatibility' && person2Data) {
-      const result = calculateCompatibility(
-        features,
-        traits,
-        person2Data.features,
-        person2Data.traits
-      )
-      setCompatibilityResult(result)
-    }
+    // Don't auto-calculate compatibility, wait for user to click button
   }
 
   const handlePerson2Analysis = (
@@ -51,16 +48,37 @@ function PhysiognomyPage() {
     imageUrl: string
   ) => {
     setPerson2Data({ features, traits, imageUrl })
+    // Don't auto-calculate compatibility, wait for user to click button
+  }
 
-    // If person 1 is already analyzed, calculate compatibility
-    if (person1Data) {
-      const result = calculateCompatibility(
-        person1Data.features,
-        person1Data.traits,
-        features,
-        traits
-      )
-      setCompatibilityResult(result)
+  const handleCalculateCompatibility = async () => {
+    // Trigger analysis on both faces SEQUENTIALLY to avoid MediaPipe WASM conflicts
+    if (person1AnalyzerRef.current && person2AnalyzerRef.current) {
+      setIsAnalyzing(true)
+      try {
+        // Analyze faces one by one (NOT in parallel)
+        await person1AnalyzerRef.current.analyze()
+        await person2AnalyzerRef.current.analyze()
+
+        // Wait for state to update (analysis results should be in person1Data and person2Data)
+        // Add a small delay to ensure state updates are processed
+        await new Promise(resolve => setTimeout(resolve, 500))
+
+        // Check if both analyses completed
+        if (person1Data && person2Data) {
+          const result = calculateCompatibility(
+            person1Data.features,
+            person1Data.traits,
+            person2Data.features,
+            person2Data.traits
+          )
+          setCompatibilityResult(result)
+        }
+      } catch (error) {
+        console.error('Error during compatibility analysis:', error)
+      } finally {
+        setIsAnalyzing(false)
+      }
     }
   }
 
@@ -68,6 +86,9 @@ function PhysiognomyPage() {
     setPerson1Data(null)
     setPerson2Data(null)
     setCompatibilityResult(null)
+    setIsAnalyzing(false)
+    setPerson1ImageReady(false)
+    setPerson2ImageReady(false)
   }
 
   const handleModeChange = (key: string | number) => {
@@ -166,18 +187,44 @@ function PhysiognomyPage() {
         <>
           {/* Compatibility Analysis Mode */}
           {!compatibilityResult ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <FaceAnalyzer
-                onAnalysisComplete={handlePerson1Analysis}
-                title="First Person"
-                personNumber={1}
-              />
-              <FaceAnalyzer
-                onAnalysisComplete={handlePerson2Analysis}
-                title="Second Person"
-                personNumber={2}
-              />
-            </div>
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FaceAnalyzer
+                  ref={person1AnalyzerRef}
+                  onAnalysisComplete={handlePerson1Analysis}
+                  title="First Person"
+                  personNumber={1}
+                  compatibilityMode={true}
+                  onImageSelected={(url) => setPerson1ImageReady(true)}
+                />
+                <FaceAnalyzer
+                  ref={person2AnalyzerRef}
+                  onAnalysisComplete={handlePerson2Analysis}
+                  title="Second Person"
+                  personNumber={2}
+                  compatibilityMode={true}
+                  onImageSelected={(url) => setPerson2ImageReady(true)}
+                />
+              </div>
+
+              {/* Show compatibility button when both images are uploaded */}
+              {person1ImageReady && person2ImageReady && (
+                <div className="flex justify-center">
+                  <Button
+                    size="lg"
+                    color="secondary"
+                    className="bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold shadow-lg"
+                    onPress={handleCalculateCompatibility}
+                    isLoading={isAnalyzing}
+                    startContent={
+                      !isAnalyzing && <Sparkles className="w-5 h-5" />
+                    }
+                  >
+                    {isAnalyzing ? 'Đang phân tích...' : '✨ Kiểm Tra Độ Tương Hợp'}
+                  </Button>
+                </div>
+              )}
+            </>
           ) : (
             <>
               <CompatibilityDisplay
@@ -187,39 +234,6 @@ function PhysiognomyPage() {
                 person1Name="Person 1"
                 person2Name="Person 2"
               />
-
-              {/* Individual Results */}
-              <Card>
-                <CardBody>
-                  <h2 className="text-xl font-bold mb-6 text-center">
-                    Individual Analysis
-                  </h2>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <div>
-                      <h3 className="text-lg font-semibold mb-4 text-center text-primary">
-                        Person 1
-                      </h3>
-                      <ResultsDisplay
-                        features={person1Data!.features}
-                        traits={person1Data!.traits}
-                        imageUrl={person1Data!.imageUrl}
-                        personName="Person 1"
-                      />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold mb-4 text-center text-secondary">
-                        Person 2
-                      </h3>
-                      <ResultsDisplay
-                        features={person2Data!.features}
-                        traits={person2Data!.traits}
-                        imageUrl={person2Data!.imageUrl}
-                        personName="Person 2"
-                      />
-                    </div>
-                  </div>
-                </CardBody>
-              </Card>
 
               <div className="flex justify-center">
                 <Button

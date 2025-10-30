@@ -3,7 +3,7 @@
  * Analyzes facial features according to Chinese face reading principles
  */
 
-import { FaceFeatures } from './faceAnalysis'
+import { type FaceFeatures } from './faceAnalysis'
 
 export interface PhysiognomyTraits {
   // Tính cách (Personality)
@@ -25,6 +25,15 @@ export interface PhysiognomyTraits {
     love: number
     health: number
     family: number
+  }
+
+  // Phân tích chi tiết Ngũ Quan (Five Features)
+  nguQuan: {
+    eyes: string // Mắt (Giám Sát Quan) - Personality and emotions
+    eyebrows: string // Lông Mày (Bảo Thọ Quan) - Relationships and temperament
+    nose: string // Mũi (Thẩm Biện Quan) - Wealth and determination
+    mouth: string // Miệng (Xuất Nạp Quan) - Communication and relationships
+    ears: string // Tai (Thái Thính Quan) - Longevity and early fortune
   }
 
   // Phân tích chi tiết
@@ -51,94 +60,217 @@ function analyzeForehead(features: FaceFeatures): {
   career: number
   description: string
 } {
-  const { foreheadHeight, foreheadWidth, foreheadRatio } = features
+  const { foreheadHeight, foreheadWidth, foreheadRatio, faceHeight, faceWidth } = features
 
   let score = 50
   let intelligence = 50
   let career = 50
-  let description = ''
+  let descriptions: string[] = []
 
-  // High forehead indicates intelligence and analytical thinking
-  if (foreheadRatio > 1.2) {
+  // Calculate specific measurements for more unique analysis
+  const foreheadArea = foreheadHeight * foreheadWidth
+  const faceArea = faceHeight * faceWidth
+  const foreheadAreaRatio = safeDivide(foreheadArea, faceArea, 0.3)
+  const widthRatio = safeDivide(foreheadWidth, faceWidth, 0.8)
+
+  // Very detailed forehead height analysis (7 levels)
+  if (foreheadRatio > 1.4) {
+    intelligence += 35
+    career += 25
+    descriptions.push(`**Trán rất cao** (${foreheadRatio.toFixed(2)}:1, cao hơn ~${((foreheadRatio - 1) * 100).toFixed(0)}% so với chiều rộng) - Trí tuệ xuất chúng, tư duy triết lý sâu sắc.`)
+    descriptions.push('Khả năng phân tích phức tạp vượt trội, thích nghiên cứu lý thuyết và chiến lược dài hạn. Phù hợp với vai trò lãnh đạo cấp cao, học giả, hoặc chiến lược gia.')
+  } else if (foreheadRatio > 1.2) {
     intelligence += 30
     career += 20
-    description = 'Trán cao rộng, thông minh, suy nghĩ logic và phân tích tốt. Có khả năng lãnh đạo và quyết định sáng suốt.'
-  } else if (foreheadRatio > 0.9) {
+    descriptions.push(`**Trán cao** (${foreheadRatio.toFixed(2)}:1) - Thông minh, logic mạnh và khả năng lập kế hoạch tốt.`)
+    descriptions.push('Có tầm nhìn xa, giỏi quản lý và phù hợp với công việc đòi hỏi tư duy phân tích như quản lý, kỹ sư, hoặc nghiên cứu.')
+  } else if (foreheadRatio > 1.0) {
+    intelligence += 20
+    career += 15
+    descriptions.push(`**Trán hơi cao** (${foreheadRatio.toFixed(2)}:1) - Cân bằng tốt giữa lý thuyết và thực hành.`)
+    descriptions.push('Học hỏi nhanh và biết áp dụng kiến thức vào thực tế. Linh hoạt trong nhiều môi trường công việc.')
+  } else if (foreheadRatio > 0.8) {
     intelligence += 15
     career += 10
-    description = 'Trán cân đối, thông minh và thực tế. Có khả năng học hỏi tốt và áp dụng vào công việc hiệu quả.'
+    descriptions.push(`**Trán cân đối** (${foreheadRatio.toFixed(2)}:1) - Thông minh thực tế, ưa thích hành động.`)
+    descriptions.push('Giỏi giải quyết vấn đề cụ thể, thích "làm" hơn "nghĩ". Phù hợp với công việc kỹ thuật, thực hành.')
+  } else if (foreheadRatio > 0.6) {
+    intelligence += 10
+    career += 8
+    descriptions.push(`**Trán hơi thấp** (${foreheadRatio.toFixed(2)}:1) - Rất thực tế, quyết đoán và hành động nhanh.`)
+    descriptions.push('Trực giác tốt, thích công việc kỹ thuật hoặc thủ công. Không thích lý thuyết dài dòng.')
   } else {
     intelligence += 5
     career += 5
-    description = 'Trán thấp, thực tế và hành động. Thích làm việc cụ thể hơn là lý thuyết trừu tượng.'
+    descriptions.push(`**Trán thấp** (${foreheadRatio.toFixed(2)}:1) - Rất thiên về hành động và thực tế.`)
+    descriptions.push('Trực giác mạnh, phản ứng nhanh. Phù hợp với công việc đòi hỏi kỹ năng thực hành và quyết định tức thì.')
   }
 
-  // Wide forehead indicates broad thinking
-  if (foreheadWidth > features.faceWidth * 0.8) {
+  // Detailed width analysis
+  if (widthRatio > 0.95) {
+    intelligence += 15
+    career += 10
+    descriptions.push(`Trán rất rộng (${(widthRatio * 100).toFixed(0)}% chiều rộng mặt) - Tư duy đa chiều, có khả năng xem xét nhiều góc độ đồng thời và tầm nhìn chiến lược.`)
+  } else if (widthRatio > 0.85) {
     intelligence += 10
-    description += ' Tư duy rộng mở, có tầm nhìn xa.'
+    career += 8
+    descriptions.push(`Trán rộng (${(widthRatio * 100).toFixed(0)}% chiều rộng mặt) - Tư duy mở rộng, linh hoạt trong giải quyết vấn đề.`)
+  } else if (widthRatio > 0.70) {
+    intelligence += 8
+    descriptions.push(`Trán cân đối (${(widthRatio * 100).toFixed(0)}% chiều rộng mặt) - Tư duy có phương pháp và tập trung.`)
+  } else {
+    intelligence += 5
+    descriptions.push(`Trán hẹp (${(widthRatio * 100).toFixed(0)}% chiều rộng mặt) - Tập trung sâu vào một chuyên môn, trở thành chuyên gia trong lĩnh vực hẹp.`)
+  }
+
+  // Area analysis adds even more specificity
+  if (foreheadAreaRatio > 0.38) {
+    intelligence += 10
+    descriptions.push(`Diện tích trán chiếm ${(foreheadAreaRatio * 100).toFixed(0)}% khuôn mặt - khả năng tư duy trừu tượng và sáng tạo cao.`)
+  } else if (foreheadAreaRatio > 0.28) {
+    career += 5
+    descriptions.push(`Diện tích trán cân đối (${(foreheadAreaRatio * 100).toFixed(0)}% khuôn mặt).`)
+  } else {
+    career += 10
+    descriptions.push(`Diện tích trán nhỏ gọn (${(foreheadAreaRatio * 100).toFixed(0)}% khuôn mặt) - thích kết quả ngay lập tức hơn là quy hoạch dài hạn.`)
   }
 
   score = (intelligence + career) / 2
-  return { score, intelligence, career, description }
+  return { score, intelligence, career, description: descriptions.join(' ') }
 }
 
 /**
- * Analyze eyes (Mắt)
- * Represents personality, emotions, and interpersonal relationships
+ * Analyze eyebrows (Lông Mày - Bảo Thọ Quan)
+ * Represents relationships, temperament, and longevity
+ */
+function analyzeEyebrows(features: FaceFeatures): {
+  score: number
+  relationships: number
+  temperament: number
+  description: string
+} {
+  // Note: MediaPipe doesn't provide direct eyebrow measurements, so we infer from forehead and eye data
+  const { foreheadHeight, eyeDistance, facialSymmetry } = features
+
+  let score = 50
+  let relationships = 50
+  let temperament = 50
+  let description = ''
+
+  // Eyebrow position relative to eyes (inferred from forehead height)
+  // Higher eyebrows (more forehead space) indicate planning and thoughtfulness
+  const eyebrowSpacing = foreheadHeight / features.faceHeight
+  if (eyebrowSpacing > 0.35) {
+    temperament += 20
+    relationships += 15
+    description = 'Lông mày cao và rộng, tính cách điềm tĩnh và suy nghĩ kỹ càng. Có khả năng duy trì mối quan hệ lâu dài và sâu sắc.'
+  } else if (eyebrowSpacing > 0.30) {
+    temperament += 15
+    relationships += 10
+    description = 'Lông mày cân đối, tính cách hòa nhã và dễ gần. Giao tiếp tốt và có nhiều bạn bè.'
+  } else {
+    temperament += 10
+    relationships += 5
+    description = 'Lông mày thấp, tính cách quyết đoán và hành động nhanh. Thẳng thắn trong giao tiếp.'
+  }
+
+  // Eyebrow symmetry (using facial symmetry as proxy)
+  if (facialSymmetry > 85) {
+    relationships += 15
+    description += ' Cân bằng trong các mối quan hệ, biết lắng nghe và chia sẻ.'
+  } else if (facialSymmetry > 70) {
+    relationships += 10
+    description += ' Khá ổn định trong tình cảm và quan hệ xã hội.'
+  }
+
+  // Eyebrow width (inferred from eye distance)
+  if (eyeDistance > features.faceWidth * 0.38) {
+    temperament += 15
+    description += ' Rộng lượng, bao dung và ít khi nổi giận.'
+  } else if (eyeDistance < features.faceWidth * 0.32) {
+    temperament += 10
+    description += ' Tập trung và quyết đoán trong công việc.'
+  }
+
+  score = (relationships + temperament) / 2
+  return { score, relationships, temperament, description }
+}
+
+/**
+ * Analyze eyes (Mắt - Giám Sát Quan)
+ * Represents personality, emotions, and "nhãn thần" (eye spirit/brightness)
+ * This is the MOST IMPORTANT feature in physiognomy
  */
 function analyzeEyes(features: FaceFeatures): {
   score: number
   emotional: number
   sociability: number
+  nhanThan: number // Eye spirit/brightness
   description: string
 } {
-  const { eyeWidth, eyeDistance, eyeSymmetry, eyeToFaceRatio } = features
+  const { eyeWidth, eyeDistance, eyeSymmetry, eyeToFaceRatio, facialSymmetry } = features
 
   let score = 50
   let emotional = 50
   let sociability = 50
+  let nhanThan = 50 // Eye spirit - most important in traditional physiognomy
   let description = ''
 
-  // Large eyes indicate emotional sensitivity and expressiveness
+  // "Nhãn thần" (eye spirit) - approximated by eye symmetry and overall facial harmony
+  // In traditional physiognomy, bright, clear eyes with good spirit are most valued
+  if (eyeSymmetry > 0.95 && facialSymmetry > 85) {
+    nhanThan += 35
+    description = '👁️ **Nhãn thần tốt** - Mắt sáng, có thần. Đây là dấu hiệu của trí tuệ minh mẫn, tâm hồn trong sáng và khả năng thấu hiểu người khác xuất sắc. '
+  } else if (eyeSymmetry > 0.85 && facialSymmetry > 70) {
+    nhanThan += 20
+    description = 'Mắt có thần khá tốt, tinh thần minh mẫn và tỉnh táo. '
+  } else {
+    nhanThan += 10
+    description = 'Mắt cần rèn luyện thêm sự tập trung và tinh thần. '
+  }
+
+  // Eye size and shape
   if (eyeToFaceRatio > 0.15) {
     emotional += 25
     sociability += 20
-    description = 'Mắt to, giàu cảm xúc, dễ gần và thân thiện. Có khả năng giao tiếp tốt và thu hút người khác.'
+    description += 'Mắt to, giàu cảm xúc, dễ gần và thân thiện. Có khả năng thu hút và giao tiếp tốt với người khác.'
   } else if (eyeToFaceRatio > 0.12) {
     emotional += 15
     sociability += 10
-    description = 'Mắt cân đối, cảm xúc ổn định và giao tiếp tốt. Dễ dàng tạo mối quan hệ với người khác.'
+    description += 'Mắt cân đối, cảm xúc ổn định. Dễ dàng tạo mối quan hệ tin cậy với người khác.'
   } else {
     emotional += 5
     sociability += 5
-    description = 'Mắt nhỏ, thận trọng và kín đáo. Cần thời gian để mở lòng với người khác.'
+    description += 'Mắt nhỏ, thận trọng và quan sát kỹ. Cần thời gian để tin tưởng người khác.'
   }
 
   // Eye symmetry indicates emotional balance
   if (eyeSymmetry > 0.9) {
     emotional += 15
-    description += ' Cân bằng cảm xúc tốt, ổn định tâm lý.'
+    description += ' Cân bằng cảm xúc tốt, ổn định tâm lý và quyết định sáng suốt.'
   } else if (eyeSymmetry > 0.8) {
     emotional += 10
-    description += ' Cảm xúc khá ổn định.'
+    description += ' Cảm xúc khá ổn định trong hầu hết các tình huống.'
   }
 
-  // Wide eye distance indicates tolerance and openness
+  // Eye distance indicates tolerance and thinking style
   if (eyeDistance > features.faceWidth * 0.4) {
     sociability += 15
-    description += ' Thoáng đãng, bao dung và chấp nhận sự khác biệt.'
+    nhanThan += 10
+    description += ' Thoáng đãng, bao dung và có tư duy chiến lược.'
   } else if (eyeDistance < features.faceWidth * 0.3) {
-    description += ' Tập trung, chuyên sâu vào công việc.'
+    nhanThan += 10
+    description += ' Tập trung cao độ, chuyên sâu và chi tiết trong công việc.'
   }
 
-  score = (emotional + sociability) / 2
-  return { score, emotional, sociability, description }
+  score = (emotional + sociability + nhanThan) / 3
+  return { score, emotional, sociability, nhanThan, description }
 }
 
 /**
- * Analyze nose (Mũi)
+ * Analyze nose (Mũi - Thẩm Biện Quan)
  * Represents wealth, determination, and middle-age fortune
+ * "Mũi là Cung Tài Bạch" - Most important for wealth fortune
  */
 function analyzeNose(features: FaceFeatures): {
   score: number
@@ -146,49 +278,100 @@ function analyzeNose(features: FaceFeatures): {
   determination: number
   description: string
 } {
-  const { noseLength, noseWidth, noseRatio, noseBridgeWidth } = features
+  const { noseLength, noseWidth, noseRatio, noseBridgeWidth, faceWidth, faceHeight } = features
 
   let score = 50
   let wealth = 50
   let determination = 50
-  let description = ''
+  let descriptions: string[] = []
 
-  // High nose bridge indicates confidence and determination
-  if (noseRatio > 1.5) {
+  // Calculate detailed nose metrics
+  const noseWidthRatio = safeDivide(noseWidth, faceWidth, 0.2)
+  const noseBridgeRatio = safeDivide(noseBridgeWidth, faceWidth, 0.08)
+  const noseToFaceRatio = safeDivide(noseLength, faceHeight, 0.15)
+
+  // Detailed nose height/length analysis (7 levels)
+  if (noseRatio > 2.0) {
+    determination += 30
+    wealth += 20
+    descriptions.push(`**Sống mũi rất cao** (tỷ lệ ${noseRatio.toFixed(2)}:1, cao gấp đôi chiều rộng) - Tự tin vượt trội, tham vọng lớn và quyết tâm mạnh mẽ.`)
+    descriptions.push('Khả năng tích lũy tài sản xuất sắc, có thể trở thành doanh nhân hoặc lãnh đạo thành công. Tuy nhiên cần chú ý đến sự kiêu ngạo.')
+  } else if (noseRatio > 1.6) {
     determination += 25
+    wealth += 18
+    descriptions.push(`**Sống mũi cao** (tỷ lệ ${noseRatio.toFixed(2)}:1) - Rất tự tin, quyết đoán và có khả năng tài chính tốt.`)
+    descriptions.push('Tích lũy tài sản ổn định, có khả năng quản lý tiền bạc khôn ngoan và thành công trong sự nghiệp.')
+  } else if (noseRatio > 1.3) {
+    determination += 18
     wealth += 15
-    description = 'Sống mũi cao, tự tin và quyết đoán. Có khả năng tích lũy tài sản và thành công trong sự nghiệp.'
-  } else if (noseRatio > 1.2) {
-    determination += 15
+    descriptions.push(`**Sống mũi hơi cao** (tỷ lệ ${noseRatio.toFixed(2)}:1) - Tự tin, ổn định và vững chắc.`)
+    descriptions.push('Có khả năng tài chính khá tốt, biết cách đầu tư và tiết kiệm hợp lý.')
+  } else if (noseRatio > 1.0) {
+    determination += 12
     wealth += 10
-    description = 'Mũi cân đối, ổn định và vững chắc. Có khả năng tài chính tốt và quản lý tiền bạc khôn ngoan.'
+    descriptions.push(`**Mũi cân đối** (tỷ lệ ${noseRatio.toFixed(2)}:1) - Hài hòa, cân bằng và thực tế.`)
+    descriptions.push('Quản lý tài chính ổn định, không quá tham vọng nhưng cũng không thiếu thốn.')
+  } else if (noseRatio > 0.8) {
+    determination += 8
+    wealth += 7
+    descriptions.push(`**Mũi hơi thấp** (tỷ lệ ${noseRatio.toFixed(2)}:1) - Dễ chịu, linh hoạt và không quá quan tâm đến tiền bạc.`)
+    descriptions.push('Cần học cách quản lý tài chính tốt hơn, tránh chi tiêu bốc đồng.')
   } else {
     determination += 5
     wealth += 5
-    description = 'Mũi thấp, dễ chịu và linh hoạt. Cần học cách quản lý tài chính tốt hơn.'
+    descriptions.push(`**Mũi thấp** (tỷ lệ ${noseRatio.toFixed(2)}:1) - Rất dễ chịu, ít tham vọng về vật chất.`)
+    descriptions.push('Ưu tiên hạnh phúc và quan hệ hơn là tiền bạc. Cần người khác hỗ trợ về tài chính.')
   }
 
-  // Wide nose tip indicates generosity with money
-  if (noseWidth > features.faceWidth * 0.25) {
-    wealth += 15
-    description += ' Rộng rãi, hào phóng với tiền bạc.'
-  } else {
+  // Detailed nose width analysis
+  if (noseWidthRatio > 0.28) {
+    wealth += 18
+    descriptions.push(`Đầu mũi rất rộng (${(noseWidthRatio * 100).toFixed(0)}% chiều rộng mặt) - Rất hào phóng, rộng rãi với tiền bạc.`)
+    descriptions.push('Dễ kiếm tiền nhưng cũng dễ tiêu tiền. Cần chú ý kiểm soát chi tiêu.')
+  } else if (noseWidthRatio > 0.23) {
+    wealth += 12
+    determination += 5
+    descriptions.push(`Đầu mũi rộng (${(noseWidthRatio * 100).toFixed(0)}% chiều rộng mặt) - Hào phóng và thích chia sẻ.`)
+  } else if (noseWidthRatio > 0.18) {
     determination += 10
-    description += ' Tiết kiệm và thận trọng với chi tiêu.'
+    descriptions.push(`Đầu mũi cân đối (${(noseWidthRatio * 100).toFixed(0)}% chiều rộng mặt) - Cân bằng giữa chi tiêu và tiết kiệm.`)
+  } else {
+    determination += 15
+    wealth += 8
+    descriptions.push(`Đầu mũi nhỏ gọn (${(noseWidthRatio * 100).toFixed(0)}% chiều rộng mặt) - Rất tiết kiệm, thận trọng với tiền bạc.`)
+    descriptions.push('Biết cách tích lũy từng đồng một, nhưng đôi khi quá keo kiệt.')
   }
 
-  // Strong nose bridge indicates strong will
-  if (noseBridgeWidth > features.faceWidth * 0.1) {
-    determination += 15
-    description += ' Ý chí mạnh mẽ, kiên định với mục tiêu.'
+  // Nose bridge analysis
+  if (noseBridgeRatio > 0.12) {
+    determination += 18
+    descriptions.push(`Sống mũi rất chắc (${(noseBridgeRatio * 100).toFixed(1)}% chiều rộng mặt) - Ý chí sắt đá, không dễ bị lay chuyển.`)
+    descriptions.push('Kiên định với mục tiêu, có thể vượt qua mọi khó khăn.')
+  } else if (noseBridgeRatio > 0.09) {
+    determination += 12
+    descriptions.push(`Sống mũi chắc khỏe (${(noseBridgeRatio * 100).toFixed(1)}% chiều rộng mặt) - Ý chí mạnh mẽ, kiên định.`)
+  } else if (noseBridgeRatio > 0.06) {
+    determination += 8
+    descriptions.push(`Sống mũi cân đối (${(noseBridgeRatio * 100).toFixed(1)}% chiều rộng mặt) - Ý chí ổn định.`)
+  } else {
+    determination += 5
+    descriptions.push(`Sống mũi nhỏ gọn (${(noseBridgeRatio * 100).toFixed(1)}% chiều rộng mặt) - Linh hoạt, dễ thay đổi quyết định.`)
+  }
+
+  // Nose length relative to face
+  if (noseToFaceRatio > 0.18) {
+    wealth += 10
+    descriptions.push(`Chiều dài mũi chiếm ${(noseToFaceRatio * 100).toFixed(0)}% chiều cao mặt - Vận tài lộc trung niên rất tốt.`)
+  } else if (noseToFaceRatio < 0.12) {
+    descriptions.push(`Mũi tương đối ngắn (${(noseToFaceRatio * 100).toFixed(0)}% chiều cao mặt) - Cần chú ý phát triển sự nghiệp ở tuổi trung niên.`)
   }
 
   score = (wealth + determination) / 2
-  return { score, wealth, determination, description }
+  return { score, wealth, determination, description: descriptions.join(' ') }
 }
 
 /**
- * Analyze mouth (Miệng)
+ * Analyze mouth (Miệng - Xuất Nạp Quan)
  * Represents communication, relationships, and late-life fortune
  */
 function analyzeMouth(features: FaceFeatures): {
@@ -197,44 +380,89 @@ function analyzeMouth(features: FaceFeatures): {
   love: number
   description: string
 } {
-  const { mouthWidth, lipThickness, mouthToNoseRatio } = features
+  const { mouthWidth, lipThickness, mouthToNoseRatio, faceWidth, faceHeight } = features
 
   let score = 50
   let sociability = 50
   let love = 50
-  let description = ''
+  let descriptions: string[] = []
 
-  // Large mouth indicates expressiveness and boldness
-  if (mouthToNoseRatio > 1.8) {
+  // Calculate detailed mouth metrics
+  const mouthWidthRatio = safeDivide(mouthWidth, faceWidth, 0.35)
+  const lipThicknessRatio = safeDivide(lipThickness, faceHeight, 0.03)
+
+  // Very detailed mouth size analysis (7 levels)
+  if (mouthToNoseRatio > 2.2) {
+    sociability += 30
+    love += 18
+    descriptions.push(`**Miệng rất rộng** (${mouthToNoseRatio.toFixed(2)}:1 so với mũi, rộng ${(mouthWidthRatio * 100).toFixed(0)}% chiều rộng mặt) - Cực kỳ hào phóng, biểu cảm phong phú và thu hút mọi người.`)
+    descriptions.push('Giao tiếp rất tự tin và thẳng thắn, dễ trở thành trung tâm trong các cuộc trò chuyện. Tuy nhiên cần cẩn thận với lời nói.')
+  } else if (mouthToNoseRatio > 1.9) {
     sociability += 25
     love += 15
-    description = 'Miệng rộng, hào phóng và biểu cảm. Giao tiếp tự tin, dễ thu hút sự chú ý của người khác.'
-  } else if (mouthToNoseRatio > 1.5) {
-    sociability += 15
+    descriptions.push(`**Miệng rộng** (${mouthToNoseRatio.toFixed(2)}:1 so với mũi) - Hào phóng, biểu cảm và thu hút.`)
+    descriptions.push('Giao tiếp tốt, dễ tạo ấn tượng và có nhiều bạn bè. Thích chia sẻ và trò chuyện.')
+  } else if (mouthToNoseRatio > 1.6) {
+    sociability += 18
+    love += 12
+    descriptions.push(`**Miệng hơi rộng** (${mouthToNoseRatio.toFixed(2)}:1 so với mũi) - Cởi mở, thân thiện và dễ gần.`)
+    descriptions.push('Giao tiếp tự nhiên, có khả năng duy trì mối quan hệ tốt.')
+  } else if (mouthToNoseRatio > 1.3) {
+    sociability += 12
     love += 10
-    description = 'Miệng cân đối, giao tiếp tốt và dễ chịu. Có khả năng duy trì mối quan hệ lâu dài.'
+    descriptions.push(`**Miệng cân đối** (${mouthToNoseRatio.toFixed(2)}:1 so với mũi) - Hài hòa, giao tiếp vừa phải.`)
+    descriptions.push('Biết khi nào nên nói, khi nào nên im lặng. Duy trì mối quan hệ ổn định.')
+  } else if (mouthToNoseRatio > 1.1) {
+    sociability += 8
+    love += 7
+    descriptions.push(`**Miệng hơi nhỏ** (${mouthToNoseRatio.toFixed(2)}:1 so với mũi) - Kín đáo, thận trọng trong lời nói.`)
+    descriptions.push('Suy nghĩ kỹ trước khi nói, ít nói nhưng ý nghĩa. Cần thời gian để tin tưởng.')
   } else {
     sociability += 5
     love += 5
-    description = 'Miệng nhỏ, kín đáo và thận trọng trong lời nói. Cần thời gian để tạo dựng lòng tin.'
+    descriptions.push(`**Miệng nhỏ** (${mouthToNoseRatio.toFixed(2)}:1 so với mũi) - Rất kín đáo, ít nói.`)
+    descriptions.push('Thích lắng nghe hơn là nói, khó mở lòng. Quan hệ ít nhưng sâu sắc.')
   }
 
-  // Thick lips indicate sensuality and emotional depth
-  if (lipThickness > features.faceHeight * 0.05) {
+  // Detailed lip thickness analysis
+  if (lipThicknessRatio > 0.06) {
+    love += 25
+    descriptions.push(`Môi rất dầy (${(lipThicknessRatio * 100).toFixed(1)}% chiều cao mặt) - Cực kỳ giàu cảm xúc, nồng nhiệt và trung thành.`)
+    descriptions.push('Rất quan tâm đến người thân, yêu đương sâu đậm. Ham muốn tình cảm cao.')
+  } else if (lipThicknessRatio > 0.045) {
     love += 20
-    description += ' Giàu cảm xúc, trung thành và quan tâm đến người thân.'
+    descriptions.push(`Môi dầy (${(lipThicknessRatio * 100).toFixed(1)}% chiều cao mặt) - Giàu cảm xúc, ấm áp và quan tâm người khác.`)
+    descriptions.push('Trung thành trong tình yêu, thích chăm sóc người thân.')
+  } else if (lipThicknessRatio > 0.03) {
+    love += 12
+    sociability += 5
+    descriptions.push(`Môi cân đối (${(lipThicknessRatio * 100).toFixed(1)}% chiều cao mặt) - Cân bằng giữa cảm xúc và lý trí.`)
+  } else if (lipThicknessRatio > 0.02) {
+    sociability += 15
+    love += 5
+    descriptions.push(`Môi mỏng (${(lipThicknessRatio * 100).toFixed(1)}% chiều cao mặt) - Lý trí, khách quan và thực tế.`)
+    descriptions.push('Không quá bộc lộ cảm xúc, thích logic hơn tình cảm.')
   } else {
-    sociability += 10
-    description += ' Lý trí, khách quan trong các mối quan hệ.'
+    sociability += 18
+    descriptions.push(`Môi rất mỏng (${(lipThicknessRatio * 100).toFixed(1)}% chiều cao mặt) - Rất lý trí, kiềm chế cảm xúc.`)
+    descriptions.push('Giao tiếp ngắn gọn, đi thẳng vào vấn đề. Ít bộc lộ tình cảm.')
+  }
+
+  // Mouth width relative to face
+  if (mouthWidthRatio > 0.42) {
+    sociability += 12
+    descriptions.push(`Miệng chiếm ${(mouthWidthRatio * 100).toFixed(0)}% chiều rộng mặt - Rất cởi mở và thích giao tiếp.`)
+  } else if (mouthWidthRatio < 0.30) {
+    descriptions.push(`Miệng chiếm ${(mouthWidthRatio * 100).toFixed(0)}% chiều rộng mặt - Khá kín đáo và chọn lọc bạn bè.`)
   }
 
   score = (sociability + love) / 2
-  return { score, sociability, love, description }
+  return { score, sociability, love, description: descriptions.join(' ') }
 }
 
 /**
  * Analyze jaw and chin (Hàm)
- * Represents willpower, health, and longevity
+ * Represents willpower, health, and longevity (Hạ Đình)
  */
 function analyzeJaw(features: FaceFeatures): {
   score: number
@@ -242,42 +470,132 @@ function analyzeJaw(features: FaceFeatures): {
   health: number
   description: string
 } {
-  const { jawWidth, jawlineDefinition, chinLength } = features
+  const { jawWidth, jawlineDefinition, chinLength, faceWidth, faceHeight } = features
 
   let score = 50
   let determination = 50
   let health = 50
-  let description = ''
+  let descriptions: string[] = []
 
-  // Strong jawline indicates determination and stamina
-  if (jawlineDefinition > 0.05) {
+  // Calculate detailed jaw metrics
+  const jawWidthRatio = safeDivide(jawWidth, faceWidth, 0.75)
+  const chinLengthRatio = safeDivide(chinLength, faceHeight, 0.12)
+  const jawDefinitionLevel = jawlineDefinition * 100 // Convert to percentage
+
+  // Very detailed jawline definition analysis (7 levels)
+  if (jawlineDefinition > 0.08) {
+    determination += 30
+    health += 25
+    descriptions.push(`**Hàm rất chắc khỏe** (độ rõ nét ${jawDefinitionLevel.toFixed(1)}%) - Ý chí sắt đá, sức bền vượt trội và sức khỏe xuất sắc.`)
+    descriptions.push('Có khả năng vượt qua mọi khó khăn, không bao giờ bỏ cuộc. Tuổi thọ cao, hậu vận tốt.')
+  } else if (jawlineDefinition > 0.06) {
     determination += 25
     health += 20
-    description = 'Hàm chắc khỏe, ý chí mạnh mẽ và sức bền cao. Có khả năng vượt qua khó khăn và đạt được mục tiêu.'
-  } else if (jawlineDefinition > 0.03) {
-    determination += 15
+    descriptions.push(`**Hàm chắc khỏe** (độ rõ nét ${jawDefinitionLevel.toFixed(1)}%) - Ý chí mạnh mẽ, kiên trì và sức khỏe tốt.`)
+    descriptions.push('Kiên định với mục tiêu, có thể đạt được thành công lớn. Cuộc sống sau 50 tuổi rất tốt.')
+  } else if (jawlineDefinition > 0.04) {
+    determination += 18
+    health += 15
+    descriptions.push(`**Hàm khá chắc** (độ rõ nét ${jawDefinitionLevel.toFixed(1)}%) - Quyết tâm tốt và sức khỏe ổn định.`)
+    descriptions.push('Biết cách kiên trì, có sức khỏe và tuổi thọ trung bình đến khá.')
+  } else if (jawlineDefinition > 0.025) {
+    determination += 12
     health += 10
-    description = 'Hàm cân đối, kiên định và có sức khỏe tốt. Biết cách cân bằng công việc và cuộc sống.'
+    descriptions.push(`**Hàm cân đối** (độ rõ nét ${jawDefinitionLevel.toFixed(1)}%) - Cân bằng giữa kiên định và linh hoạt.`)
+    descriptions.push('Biết lúc nào cần kiên trì, lúc nào cần thích nghi. Sức khỏe ổn định.')
+  } else if (jawlineDefinition > 0.015) {
+    determination += 8
+    health += 7
+    descriptions.push(`**Hàm hơi mềm** (độ rõ nét ${jawDefinitionLevel.toFixed(1)}%) - Linh hoạt, dễ thích nghi nhưng đôi khi thiếu quyết đoán.`)
+    descriptions.push('Cần rèn luyện ý chí và chú ý sức khỏe, đặc biệt ở tuổi già.')
   } else {
     determination += 5
     health += 5
-    description = 'Hàm nhẹ nhàng, linh hoạt và dễ thích nghi. Cần chú ý đến sức khỏe và thể chất.'
+    descriptions.push(`**Hàm mềm** (độ rõ nét ${jawDefinitionLevel.toFixed(1)}%) - Rất linh hoạt, dễ bị lay chuyển.`)
+    descriptions.push('Cần chú ý đến sức khỏe và rèn luyện ý chí. Hậu vận cần người khác hỗ trợ.')
   }
 
-  // Wide jaw indicates practicality
-  if (jawWidth > features.faceWidth * 0.8) {
+  // Detailed jaw width analysis
+  if (jawWidthRatio > 0.90) {
+    determination += 18
+    health += 10
+    descriptions.push(`Hàm rất rộng (${(jawWidthRatio * 100).toFixed(0)}% chiều rộng mặt) - Cực kỳ thực tế, đáng tin cậy và có trách nhiệm cao.`)
+    descriptions.push('Có khả năng chịu đựng và làm việc vất vả. Phù hợp với công việc đòi hỏi sức bền.')
+  } else if (jawWidthRatio > 0.80) {
     determination += 15
-    description += ' Thực tế, đáng tin cậy và có trách nhiệm.'
+    health += 8
+    descriptions.push(`Hàm rộng (${(jawWidthRatio * 100).toFixed(0)}% chiều rộng mặt) - Thực tế, kiên trì và đáng tin cậy.`)
+  } else if (jawWidthRatio > 0.70) {
+    determination += 10
+    descriptions.push(`Hàm cân đối (${(jawWidthRatio * 100).toFixed(0)}% chiều rộng mặt) - Cân bằng giữa lý tưởng và thực tế.`)
+  } else {
+    determination += 5
+    descriptions.push(`Hàm hẹp (${(jawWidthRatio * 100).toFixed(0)}% chiều rộng mặt) - Ưu tiên tinh thần hơn vật chất.`)
   }
 
-  // Long chin indicates longevity
-  if (chinLength > features.faceHeight * 0.15) {
+  // Detailed chin length analysis
+  if (chinLengthRatio > 0.18) {
+    health += 20
+    descriptions.push(`Cằm dài (${(chinLengthRatio * 100).toFixed(0)}% chiều cao mặt) - Dấu hiệu của tuổi thọ cao và hậu vận rất tốt.`)
+    descriptions.push('Càng về già càng tốt, cuộc sống sau 60 tuổi hanh thông và hạnh phúc.')
+  } else if (chinLengthRatio > 0.14) {
     health += 15
-    description += ' Sức khỏe tốt, có tuổi thọ cao.'
+    descriptions.push(`Cằm khá dài (${(chinLengthRatio * 100).toFixed(0)}% chiều cao mặt) - Tuổi thọ tốt và hậu vận ổn định.`)
+  } else if (chinLengthRatio > 0.10) {
+    health += 10
+    descriptions.push(`Cằm cân đối (${(chinLengthRatio * 100).toFixed(0)}% chiều cao mặt) - Tuổi thọ trung bình.`)
+  } else {
+    health += 5
+    descriptions.push(`Cằm ngắn (${(chinLengthRatio * 100).toFixed(0)}% chiều cao mặt) - Cần chú ý sức khỏe ở tuổi già.`)
   }
 
   score = (determination + health) / 2
-  return { score, determination, health, description }
+  return { score, determination, health, description: descriptions.join(' ') }
+}
+
+/**
+ * Analyze ears (Tai - Thái Thính Quan)
+ * Represents longevity, early life fortune, and wisdom
+ * Note: MediaPipe has limited ear landmarks, so this is a simplified analysis
+ */
+function analyzeEars(features: FaceFeatures): {
+  score: number
+  longevity: number
+  earlyFortune: number
+  description: string
+} {
+  // Since MediaPipe doesn't provide detailed ear measurements, we infer from face shape and overall harmony
+  const { facialHarmony, facialSymmetry, faceHeight } = features
+
+  let score = 50
+  let longevity = 50
+  let earlyFortune = 50
+  let description = ''
+
+  // In traditional physiognomy, well-proportioned ears indicate good fortune
+  // We use overall facial harmony as a proxy
+  if (facialHarmony > 80 && facialSymmetry > 80) {
+    longevity += 30
+    earlyFortune += 25
+    description = 'Tai có tướng tốt (suy từ hài hòa khuôn mặt). Tuổi thọ cao, vận may thời niên thiếu tốt đẹp. Có khả năng nghe và tiếp thu kiến thức xuất sắc.'
+  } else if (facialHarmony > 65 && facialSymmetry > 65) {
+    longevity += 20
+    earlyFortune += 15
+    description = 'Tai cân đối, sức khỏe tốt và vận may thời trẻ ổn định. Có khả năng học hỏi và tiếp thu thông tin tốt.'
+  } else {
+    longevity += 10
+    earlyFortune += 10
+    description = 'Tai cần chú ý sức khỏe và rèn luyện khả năng lắng nghe. Vận may thời niên thiếu có thể có thách thức.'
+  }
+
+  // Tall faces often correlate with longer ears in physiognomy
+  if (faceHeight > features.faceWidth * 1.4) {
+    longevity += 15
+    description += ' Tai dài (suy từ mặt dài), dấu hiệu của tuổi thọ và trí tuệ.'
+  }
+
+  score = (longevity + earlyFortune) / 2
+  return { score, longevity, earlyFortune, description }
 }
 
 /**
@@ -296,10 +614,12 @@ function safeDivide(numerator: number, denominator: number, defaultValue: number
  */
 export function analyzePhysiognomy(features: FaceFeatures): PhysiognomyTraits {
   const foreheadAnalysis = analyzeForehead(features)
+  const eyebrowsAnalysis = analyzeEyebrows(features)
   const eyesAnalysis = analyzeEyes(features)
   const noseAnalysis = analyzeNose(features)
   const mouthAnalysis = analyzeMouth(features)
   const jawAnalysis = analyzeJaw(features)
+  const earsAnalysis = analyzeEars(features)
 
   // Aggregate personality traits
   const personality = {
@@ -320,6 +640,15 @@ export function analyzePhysiognomy(features: FaceFeatures): PhysiognomyTraits {
     love: Math.min(100, safeDivide(eyesAnalysis.sociability + mouthAnalysis.love, 2, 50)),
     health: Math.min(100, jawAnalysis.health),
     family: Math.min(100, safeDivide(mouthAnalysis.love + jawAnalysis.health, 2, 50)),
+  }
+
+  // Create Ngũ Quan analysis (Five Features traditional analysis)
+  const nguQuan = {
+    eyes: eyesAnalysis.description,
+    eyebrows: eyebrowsAnalysis.description,
+    nose: noseAnalysis.description,
+    mouth: mouthAnalysis.description,
+    ears: earsAnalysis.description,
   }
 
   // Create analysis descriptions
@@ -347,6 +676,7 @@ export function analyzePhysiognomy(features: FaceFeatures): PhysiognomyTraits {
   return {
     personality,
     fortune,
+    nguQuan,
     analysis,
     overallScore,
   }
