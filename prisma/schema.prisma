@@ -61,6 +61,13 @@ model Member {
   city              String
   country           String
   image             String?
+
+  // Face Verification fields
+  referenceFaceUrl        String?  // URL của ảnh khuôn mặt mẫu
+  referenceFaceLandmarks  Json?    // Landmarks của khuôn mặt mẫu (468 points từ MediaPipe)
+  faceVerificationEnabled Boolean  @default(false) // Bật/tắt tính năng xác thực khuôn mặt
+  referenceFaceUploadedAt DateTime? // Thời gian upload reference face
+
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   photos            Photo[]
   sourceLikes       Like[]    @relation("source")
@@ -70,12 +77,19 @@ model Member {
 }
 
 model Photo {
-  id         String  @id @default(cuid())
-  url        String
-  publicId   String?
-  isApproved Boolean @default(false)
-  memberId   String
-  member     Member  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  id                   String   @id @default(cuid())
+  url                  String
+  publicId             String?
+  isApproved           Boolean  @default(false)
+
+  // Face Verification fields
+  faceVerified         Boolean  @default(false) // Đã xác thực khuôn mặt chưa
+  faceVerificationScore Float?   // Điểm tương đồng (0-100)
+  faceLandmarks        Json?    // Landmarks của ảnh này
+  verifiedAt           DateTime? // Thời gian xác thực
+
+  memberId             String
+  member               Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
 }
 
 model Like {
