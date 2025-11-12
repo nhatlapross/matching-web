@@ -503,11 +503,10 @@ export async function loadFaceMesh() {
     faceMesh.setOptions({
       maxNumFaces: 1,
       refineLandmarks: true,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5,
+      minDetectionConfidence: 0.3, // Lower threshold for better detection
+      minTrackingConfidence: 0.3,
     })
 
-    console.log('MediaPipe Face Mesh loaded successfully')
     return faceMesh
   } catch (error) {
     console.error('Failed to load MediaPipe:', error)
@@ -516,9 +515,213 @@ export async function loadFaceMesh() {
 }
 
 /**
- * Analyze face from image element using MediaPipe Face Mesh
+ * Load image from URL and ensure it's ready for processing
+ * Optionally resize large images for better MediaPipe performance
+ */
+async function loadImageFromUrl(imageUrl: string, maxSize: number = 1920): Promise<HTMLImageElement> {
+  return new Promise(async (resolve, reject) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+
+    img.onload = async () => {
+      try {
+        // Verify image loaded properly
+        if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+          reject(new Error('Image loaded but has invalid dimensions'))
+          return
+        }
+        console.log(`Image loaded: ${img.naturalWidth}x${img.naturalHeight}`)
+
+        // Resize if image is too large for optimal MediaPipe processing
+        const needsResize = img.naturalWidth > maxSize || img.naturalHeight > maxSize
+        if (needsResize) {
+          const resizedImg = await resizeImage(img, maxSize)
+          console.log(`Resized to: ${resizedImg.naturalWidth}x${resizedImg.naturalHeight}`)
+          resolve(resizedImg)
+        } else {
+          resolve(img)
+        }
+      } catch (error) {
+        reject(error)
+      }
+    }
+
+    img.onerror = (error) => {
+      console.error('Failed to load image:', error)
+      reject(new Error('Failed to load image'))
+    }
+
+    img.src = imageUrl
+  })
+}
+
+/**
+ * Resize image to fit within maxSize while maintaining aspect ratio
+ */
+async function resizeImage(img: HTMLImageElement, maxSize: number): Promise<HTMLImageElement> {
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Failed to get canvas context')
+
+  // Calculate new dimensions
+  let width = img.naturalWidth
+  let height = img.naturalHeight
+
+  if (width > height) {
+    if (width > maxSize) {
+      height = Math.round((height * maxSize) / width)
+      width = maxSize
+    }
+  } else {
+    if (height > maxSize) {
+      width = Math.round((width * maxSize) / height)
+      height = maxSize
+    }
+  }
+
+  canvas.width = width
+  canvas.height = height
+
+  // Use high quality image smoothing
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+
+  // Draw resized image
+  ctx.drawImage(img, 0, 0, width, height)
+
+  // Create new image element from canvas with high quality
+  const resizedImg = new Image()
+  resizedImg.crossOrigin = 'anonymous'
+  resizedImg.src = canvas.toDataURL('image/jpeg', 0.98)
+
+  // Wait for resized image to load
+  return new Promise((resolve, reject) => {
+    resizedImg.onload = () => resolve(resizedImg)
+    resizedImg.onerror = () => reject(new Error('Failed to load resized image'))
+  })
+}
+
+/**
+ * Extract only landmarks from image (without full feature analysis)
+ * Returns raw landmarks for face verification
+ */
+export async function extractLandmarksFromImage(
+  imageSource: string | HTMLImageElement,
+  faceMesh: any
+): Promise<{ landmarks: { x: number; y: number; z: number }[] } | null> {
+  try {
+    // Load image if URL is provided
+    let imageElement: HTMLImageElement
+    if (typeof imageSource === 'string') {
+      imageElement = await loadImageFromUrl(imageSource)
+    } else {
+      imageElement = imageSource
+      // Verify element is loaded
+      if (imageElement.naturalWidth === 0 || imageElement.naturalHeight === 0) {
+        throw new Error('Image element not loaded or has invalid dimensions')
+      }
+    }
+
+    return await extractLandmarksFromImageElement(imageElement, faceMesh)
+  } catch (error) {
+    console.error('Error in extractLandmarksFromImage:', error)
+    throw error
+  }
+}
+
+/**
+ * Extract landmarks from image element (lightweight version)
+ */
+async function extractLandmarksFromImageElement(
+  imageElement: HTMLImageElement,
+  faceMesh: any
+): Promise<{ landmarks: { x: number; y: number; z: number }[] } | null> {
+  return new Promise((resolve, reject) => {
+    let resolved = false
+
+    const onResults = (results: any) => {
+      if (resolved) return
+      resolved = true
+
+      try {
+        if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
+          resolve(null)
+          return
+        }
+
+        const faceLandmarks = results.multiFaceLandmarks[0]
+        const landmarks: { x: number; y: number; z: number }[] = faceLandmarks.map((landmark: any) => ({
+          x: landmark.x * imageElement.naturalWidth,
+          y: landmark.y * imageElement.naturalHeight,
+          z: landmark.z * imageElement.naturalWidth,
+        }))
+
+        resolve({ landmarks })
+      } catch (error) {
+        console.error('Error extracting landmarks:', error)
+        resolve(null)
+      }
+    }
+
+    faceMesh.onResults(onResults)
+
+    try {
+      faceMesh.send({ image: imageElement }).catch((err: any) => {
+        if (!resolved) {
+          resolved = true
+          console.error('MediaPipe send error:', err)
+          reject(err)
+        }
+      })
+
+      setTimeout(() => {
+        if (!resolved) {
+          resolved = true
+          resolve(null)
+        }
+      }, 10000)
+    } catch (error) {
+      if (!resolved) {
+        resolved = true
+        console.error('Error sending image:', error)
+        reject(error)
+      }
+    }
+  })
+}
+
+/**
+ * Analyze face from image URL using MediaPipe Face Mesh
+ * This is a convenience wrapper that handles image loading
  */
 export async function analyzeFaceFromImage(
+  imageSource: string | HTMLImageElement,
+  faceMesh: any
+): Promise<FaceFeatures | null> {
+  try {
+    // Load image if URL is provided
+    let imageElement: HTMLImageElement
+    if (typeof imageSource === 'string') {
+      imageElement = await loadImageFromUrl(imageSource)
+    } else {
+      imageElement = imageSource
+      // Verify element is loaded
+      if (imageElement.naturalWidth === 0 || imageElement.naturalHeight === 0) {
+        throw new Error('Image element not loaded or has invalid dimensions')
+      }
+    }
+
+    return await analyzeFaceFromImageElement(imageElement, faceMesh)
+  } catch (error) {
+    console.error('Error in analyzeFaceFromImage:', error)
+    throw error
+  }
+}
+
+/**
+ * Analyze face from image element using MediaPipe Face Mesh
+ */
+async function analyzeFaceFromImageElement(
   imageElement: HTMLImageElement,
   faceMesh: any
 ): Promise<FaceFeatures | null> {
@@ -527,12 +730,11 @@ export async function analyzeFaceFromImage(
 
     // Set up one-time callback for results
     const onResults = (results: any) => {
-      if (resolved) return // Prevent multiple resolutions
+      if (resolved) return
       resolved = true
 
       try {
         if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
-          console.log('No face detected by MediaPipe')
           resolve(null)
           return
         }
@@ -541,14 +743,11 @@ export async function analyzeFaceFromImage(
         const faceLandmarks = results.multiFaceLandmarks[0]
 
         // Convert MediaPipe normalized coordinates to pixel coordinates
-        // Use naturalWidth/naturalHeight for accurate dimensions
         const landmarks: { x: number; y: number; z: number }[] = faceLandmarks.map((landmark: any) => ({
           x: landmark.x * imageElement.naturalWidth,
           y: landmark.y * imageElement.naturalHeight,
-          z: landmark.z * imageElement.naturalWidth, // Scale z to image width
+          z: landmark.z * imageElement.naturalWidth,
         }))
-
-        console.log(`MediaPipe detected ${landmarks.length} landmarks with 3D coordinates`)
 
         // Extract features from 468 landmarks
         const features = extractFaceFeatures(landmarks)
@@ -577,7 +776,6 @@ export async function analyzeFaceFromImage(
       setTimeout(() => {
         if (!resolved) {
           resolved = true
-          console.error('MediaPipe analysis timeout')
           resolve(null)
         }
       }, 10000)

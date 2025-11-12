@@ -12,17 +12,28 @@ export async function toggleLikeMember(targetUserId: string, isLiked: boolean) {
 
         if (isLiked) {
             // Removing a like
-            await prisma.like.delete({
-                where: {
-                    sourceUserId_targetUserId: {
-                        sourceUserId: userId,
-                        targetUserId
+            try {
+                await prisma.like.delete({
+                    where: {
+                        sourceUserId_targetUserId: {
+                            sourceUserId: userId,
+                            targetUserId
+                        }
                     }
-                }
-            });
+                });
 
-            // Handle potential match deletion
-            await matchEventHandler.handleLikeRemoved(userId, targetUserId);
+                // Handle potential match deletion
+                await matchEventHandler.handleLikeRemoved(userId, targetUserId);
+                
+                return { isMatch: false };
+            } catch (error: any) {
+                // If record doesn't exist (P2025), it's already unliked - just return success
+                if (error.code === 'P2025') {
+                    console.log('Like record already deleted or does not exist');
+                    return { isMatch: false };
+                }
+                throw error;
+            }
         } else {
             // Adding a like
             const like = await prisma.like.create({
@@ -50,8 +61,33 @@ export async function toggleLikeMember(targetUserId: string, isLiked: boolean) {
 
             // Check for mutual match and handle avatar access
             const isMutualMatch = await matchEventHandler.detectAndHandleMutualMatch(userId, targetUserId);
+            console.log('[toggleLikeMember] Mutual match check:', { isMutualMatch, userId, targetUserId });
 
             if (isMutualMatch) {
+                console.log('[toggleLikeMember] 🎉 Mutual match detected! Fetching target user data...');
+                
+                // Get target user data for blockchain match
+                const targetUser = await prisma.member.findUnique({
+                    where: { userId: targetUserId },
+                    select: {
+                        name: true,
+                        image: true,
+                        userId: true,
+                        user: {
+                            select: {
+                                walletAddress: true,
+                                profileObjectId: true
+                            }
+                        }
+                    }
+                });
+
+                console.log('[toggleLikeMember] Target user data:', {
+                    userId: targetUser?.userId,
+                    walletAddress: targetUser?.user?.walletAddress,
+                    profileObjectId: targetUser?.user?.profileObjectId
+                });
+
                 // Send match notification
                 await pusherServer.trigger(`private-${targetUserId}`, 'match:new', {
                     name: like.sourceMember.name,
@@ -79,7 +115,19 @@ export async function toggleLikeMember(targetUserId: string, isLiked: boolean) {
                         reason: 'match'
                     })
                 ]);
+
+                return {
+                    isMatch: true,
+                    targetUser: {
+                        userId: targetUserId,
+                        name: targetUser?.name || 'Unknown',
+                        walletAddress: targetUser?.user?.walletAddress || null,
+                        profileObjectId: targetUser?.user?.profileObjectId || null
+                    }
+                };
             }
+
+            return { isMatch: false };
         }
 
     } catch (error) {

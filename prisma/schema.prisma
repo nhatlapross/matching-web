@@ -13,91 +13,99 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
 
 model User {
-  // `id` is the wallet address
-  id                   String    @id @default(cuid())
-  name                 String?
-  email                String?   @unique
-  emailVerified        DateTime?
-  passwordHash         String?
-  image                String?
-  profileComplete      Boolean   @default(false)
-  accounts             Account[]
-  member               Member?
-  role                 Role      @default(MEMBER)
-  profileObjectId      String?   // On-chain profile object ID
-  walletAddress        String?   // Sui wallet address
-  
-  // Avatar fields
-  publicAvatarBlobId   String?   // Walrus blob ID for public (face-swapped) avatar
-  privateAvatarBlobId  String?   // Walrus blob ID for private (encrypted) avatar
-  avatarSealPolicyId   String?   // Seal Protocol policy ID for avatar access control
-  avatarUploadedAt     DateTime? // When avatar was last uploaded
-  avatarSettings       Json      @default("{}")  // Avatar privacy and display settings
+  id                  String    @id @default(cuid())
+  name                String?
+  email               String?   @unique
+  emailVerified       DateTime?
+  passwordHash        String?
+  image               String?
+  profileComplete     Boolean   @default(false)
+  role                Role      @default(MEMBER)
+  profileObjectId     String?
+  walletAddress       String?
+  publicAvatarBlobId  String?
+  privateAvatarBlobId String?
+  avatarSealPolicyId  String?
+  avatarUploadedAt    DateTime?
+  avatarSettings      Json      @default("{}")
+  accounts            Account[]
+  member              Member?
 }
 
 model Member {
-  id                String    @id @default(cuid())
-  userId            String    @unique
-  name              String
-  gender            String
-  dateOfBirth       DateTime
-  created           DateTime  @default(now())
-  updated           DateTime  @default(now())
-  description       String
-  city              String
-  country           String
-  image             String?
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  photos            Photo[]
-  sourceLikes       Like[]    @relation("source")
-  targetLikes       Like[]    @relation("target")
-  senderMessages    Message[] @relation("sender")
-  recipientMessages Message[] @relation("recipient")
+  id                      String    @id @default(cuid())
+  userId                  String    @unique
+  name                    String
+  gender                  String
+  dateOfBirth             DateTime
+  created                 DateTime  @default(now())
+  updated                 DateTime  @default(now())
+  description             String
+  city                    String
+  country                 String
+  image                   String?
+  faceVerificationEnabled Boolean   @default(false)
+  referenceFaceLandmarks  Json?
+  referenceFaceUploadedAt DateTime?
+  referenceFaceUrl        String?
+  interests               String[]  @default([])
+  sourceLikes             Like[]    @relation("source")
+  targetLikes             Like[]    @relation("target")
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipientMessages       Message[] @relation("recipient")
+  senderMessages          Message[] @relation("sender")
+  photos                  Photo[]
 }
 
 model Photo {
-  id         String  @id @default(cuid())
-  url        String
-  publicId   String?
-  isApproved Boolean @default(false)
-  memberId   String
-  member     Member  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  id                    String    @id @default(cuid())
+  url                   String
+  publicId              String?
+  memberId              String
+  isApproved            Boolean   @default(false)
+  faceLandmarks         Json?
+  faceVerificationScore Float?
+  faceVerified          Boolean   @default(false)
+  verifiedAt            DateTime?
+  member                Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
 }
 
 model Like {
   sourceUserId String
-  sourceMember Member @relation("source", fields: [sourceUserId], references: [userId], onDelete: Cascade)
   targetUserId String
-  targetMember Member @relation("target", fields: [targetUserId], references: [userId], onDelete: Cascade)
-  matchId      String?   // On-chain match object ID
-  matchStatus  Int       @default(0) // 0=pending, 1=active
-  createdAt    DateTime  @default(now())
+  createdAt    DateTime @default(now())
+  matchId      String?
+  matchStatus  Int      @default(0)
+  sourceMember Member   @relation("source", fields: [sourceUserId], references: [userId], onDelete: Cascade)
+  targetMember Member   @relation("target", fields: [targetUserId], references: [userId], onDelete: Cascade)
 
   @@id([sourceUserId, targetUserId])
 }
 
 model ChatRoom {
   id              String   @id @default(cuid())
-  chatRoomId      String   @unique // On-chain chat room object ID
-  chatAllowlistId String   // On-chain allowlist object ID
-  participant1    String   // User ID
-  participant2    String   // User ID
+  chatRoomId      String   @unique
+  chatAllowlistId String
+  participant1    String
+  participant2    String
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([participant1, participant2])
+  @@index([chatRoomId])
 }
 
 model Message {
@@ -106,11 +114,11 @@ model Message {
   created          DateTime  @default(now())
   senderId         String?
   recipientId      String?
-  sender           Member?   @relation("sender", fields: [senderId], references: [userId], onDelete: SetNull)
-  recipient        Member?   @relation("recipient", fields: [recipientId], references: [userId], onDelete: SetNull)
   dateRead         DateTime?
   senderDeleted    Boolean   @default(false)
   recipientDeleted Boolean   @default(false)
+  recipient        Member?   @relation("recipient", fields: [recipientId], references: [userId])
+  sender           Member?   @relation("sender", fields: [senderId], references: [userId])
 }
 
 model Token {
@@ -123,17 +131,6 @@ model Token {
   @@unique([email, token])
 }
 
-enum TokenType {
-  VERIFICATION
-  PASSWORD_RESET
-}
-
-enum Role {
-  ADMIN
-  MEMBER
-}
-
-// Avatar Analytics Models
 model AvatarUploadMetric {
   id                String   @id @default(cuid())
   userId            String
@@ -187,4 +184,14 @@ model AvatarEngagementMetric {
   @@index([userId, timestamp])
   @@index([timestamp])
   @@index([action])
+}
+
+enum TokenType {
+  VERIFICATION
+  PASSWORD_RESET
+}
+
+enum Role {
+  ADMIN
+  MEMBER
 }

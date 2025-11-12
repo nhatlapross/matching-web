@@ -105,6 +105,28 @@ export default function SendGiftModal({
           {
             onSuccess: async result => {
               console.log('[SendGift] Transaction successful:', result)
+              
+              // Send notification to recipient via API
+              try {
+                const selectedGift = GIFT_TYPES.find(g => g.value === giftType)
+                await fetch('/api/notifications/gift-sent', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    recipientAddress,
+                    senderAddress: account.address,
+                    giftType: selectedGift?.label || 'Gift',
+                    giftEmoji: selectedGift?.emoji || '🎁',
+                    amount: parseInt(amount),
+                    message: message || 'A gift for you! 💝',
+                    transactionDigest: result.digest,
+                  }),
+                })
+              } catch (notifError) {
+                console.error('[SendGift] Failed to send notification:', notifError)
+                // Don't fail the whole operation if notification fails
+              }
+
               toast.success(`🎁 Gift sent to ${recipientName || 'user'}!`)
               setMessage('')
               onClose()
@@ -158,6 +180,28 @@ export default function SendGiftModal({
           {
             onSuccess: async result => {
               console.log('[SendSUI] Transaction successful:', result)
+              
+              // Send notification to recipient via API
+              try {
+                await fetch('/api/notifications/gift-sent', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    recipientAddress,
+                    senderAddress: account.address,
+                    giftType: 'SUI Coins',
+                    giftEmoji: '💰',
+                    amount: parseFloat(suiAmount),
+                    message: message || `Sent you ${suiAmount} SUI!`,
+                    transactionDigest: result.digest,
+                    isSuiTransfer: true,
+                  }),
+                })
+              } catch (notifError) {
+                console.error('[SendSUI] Failed to send notification:', notifError)
+                // Don't fail the whole operation if notification fails
+              }
+
               toast.success(
                 `💰 Sent ${suiAmount} SUI to ${recipientName || 'user'}!`
               )

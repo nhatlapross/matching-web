@@ -26,6 +26,7 @@ type Props = {
 export default function SwipeCard({ member, avatarUrl, onSwipe, onInfoClick }: Props) {
   const [exitX, setExitX] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [isImageLoading, setIsImageLoading] = useState(true);
   const cardRef = useRef<HTMLDivElement>(null);
 
   const x = useMotionValue(0);
@@ -95,14 +96,23 @@ export default function SwipeCard({ member, avatarUrl, onSwipe, onInfoClick }: P
 
           {/* Image Container */}
           <div className="relative aspect-[3/4]">
+            {/* Loading Skeleton */}
+            {isImageLoading && (
+              <div className="absolute inset-0 bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 animate-pulse z-10" />
+            )}
+            
             <Image
               alt={member.name}
               fill
               src={avatarUrl || "/images/user.png"}
-              className="object-cover"
+              className={`object-cover transition-opacity duration-300 ${
+                isImageLoading ? 'opacity-0' : 'opacity-100'
+              }`}
               sizes="(max-width: 768px) 100vw, 500px"
               priority
               draggable={false}
+              onLoad={() => setIsImageLoading(false)}
+              onError={() => setIsImageLoading(false)}
             />
 
             {/* Gradient Overlay */}

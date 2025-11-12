@@ -13,7 +13,8 @@ import {
   Eye,
   EyeOff,
   Check,
-  RefreshCw
+  RefreshCw,
+  AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'react-toastify';
@@ -111,6 +112,9 @@ export default function AvatarUploadModal({
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [isValidatingFace, setIsValidatingFace] = useState(false);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
+  const [referenceFaceDescriptor, setReferenceFaceDescriptor] = useState<any>(null);
+  const [faceVerificationEnabled, setFaceVerificationEnabled] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropZoneRef = useRef<HTMLDivElement>(null);
@@ -120,7 +124,32 @@ export default function AvatarUploadModal({
     setIsMounted(true);
   }, []);
 
-  // Handle file selection with face detection
+  // Load reference face for verification
+  React.useEffect(() => {
+    const loadReferenceFace = async () => {
+      try {
+        const response = await fetch('/api/member/reference-face');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.referenceFaceLandmarks) {
+            const descriptorArray = JSON.parse(data.referenceFaceLandmarks);
+            setReferenceFaceDescriptor({
+              descriptor: new Float32Array(descriptorArray)
+            });
+            setFaceVerificationEnabled(data.faceVerificationEnabled);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load reference face:', error);
+      }
+    };
+    
+    if (isOpen) {
+      loadReferenceFace();
+    }
+  }, [isOpen]);
+
+  // Handle file selection with face detection and verification
   const handleFileSelect = async (file: File) => {
     const validation = validateAvatarFile(file);
     if (!validation.valid) {
@@ -128,34 +157,111 @@ export default function AvatarUploadModal({
       return;
     }
 
-    setSelectedFile(file);
+    // ✅ Clear previous errors and reset state
+    setVerificationError(null);
     setIsValidatingFace(true);
     
-    // Create preview
+    // Create preview for validation only
     const reader = new FileReader();
     reader.onload = async (e) => {
       const imageUrl = e.target?.result as string;
-      setPreview({ original: imageUrl });
       
       // Validate face detection
       try {
+        console.log('🔍 Starting face validation...');
         const hasValidFace = await validateFaceInImage(imageUrl);
-        setIsValidatingFace(false);
         
         if (!hasValidFace) {
-          // Show warning but allow user to proceed
-          console.warn('No face detected, but allowing upload to continue');
-          toast.warning('⚠️ No clear face detected. The avatar might not work optimally.');
-          // Don't return - allow the upload to continue
+          console.log('❌ No face detected');
+          const errorMsg = 'No face detected in image. Please choose a clear photo with your face visible.';
+          setVerificationError(errorMsg);
+          setIsValidatingFace(false);
+          toast.error(`❌ ${errorMsg}`);
+          return;
+        }
+
+        console.log('✅ Face detected, checking against reference...');
+
+        // ✅ ALWAYS verify face if reference exists (mandatory security check)
+        if (faceVerificationEnabled && referenceFaceDescriptor) {
+          const { extractFaceDescriptor } = await import('@/utils/faceVerification');
+          const uploadedDescriptor = await extractFaceDescriptor(imageUrl);
+
+          if (!uploadedDescriptor) {
+            console.log('❌ Cannot extract face descriptor');
+            const errorMsg = 'Cannot extract face features from this image. Please choose a clearer photo.';
+            setVerificationError(errorMsg);
+            setIsValidatingFace(false);
+            toast.error(`❌ ${errorMsg}`);
+            return;
+          }
+
+          // Compare with reference face
+          const faceapi = await import('face-api.js');
+          const distance = faceapi.euclideanDistance(
+            referenceFaceDescriptor.descriptor,
+            uploadedDescriptor.descriptor
+          );
+
+          const similarityScore = Math.round((1 - distance) * 100);
+          console.log(`📊 Face comparison: distance=${distance.toFixed(3)}, similarity=${similarityScore}%`);
+
+          // ✅ REJECT if face doesn't match
+          if (distance >= 0.55) {
+            console.log('❌ Face verification FAILED - different person');
+            const errorMsg = `This photo doesn't match your reference face (similarity: ${similarityScore}%). Please use your own photo, not someone else's.`;
+            setVerificationError(errorMsg);
+            setIsValidatingFace(false);
+            toast.error(`❌ ${errorMsg}`, { autoClose: 5000 });
+            // ✅ DON'T set preview or selectedFile - reject completely
+            return;
+          }
+
+          console.log('✅ Face verification PASSED');
+          toast.success(`✅ Face verified (similarity: ${similarityScore}%)`);
+        } else if (referenceFaceDescriptor) {
+          // Reference exists but verification not enabled - still check for safety
+          console.warn('⚠️ Reference face exists but verification not enabled - checking anyway');
+          const { extractFaceDescriptor } = await import('@/utils/faceVerification');
+          const uploadedDescriptor = await extractFaceDescriptor(imageUrl);
+
+          if (uploadedDescriptor) {
+            const faceapi = await import('face-api.js');
+            const distance = faceapi.euclideanDistance(
+              referenceFaceDescriptor.descriptor,
+              uploadedDescriptor.descriptor
+            );
+
+            if (distance >= 0.55) {
+              const similarityScore = Math.round((1 - distance) * 100);
+              console.log('❌ Face verification FAILED (safety check)');
+              const errorMsg = `This photo doesn't match your reference face (similarity: ${similarityScore}%). Please use your own photo.`;
+              setVerificationError(errorMsg);
+              setIsValidatingFace(false);
+              toast.error(`❌ ${errorMsg}`, { autoClose: 5000 });
+              return;
+            }
+          }
+          
+          toast.success('✅ Face detected in image!');
+        } else {
+          console.log('⚠️ No reference face - skipping verification');
+          toast.success('✅ Face detected in image!');
         }
         
-        // Show success message for face detection
-        //toast.success('✅ Face detected in image!');
-      } catch (error) {
-        console.warn('Face validation failed:', error);
+        // ✅ ONLY set preview and selectedFile if ALL checks passed
+        console.log('✅ All checks passed - setting file for upload');
+        setVerificationError(null); // Clear any previous errors
+        setPreview({ original: imageUrl });
+        setSelectedFile(file);
         setIsValidatingFace(false);
-        // Continue with upload if face detection fails (fallback)
-        toast.warn('Unable to verify face, but you can still continue with upload');
+        
+      } catch (error) {
+        console.error('❌ Face validation error:', error);
+        const errorMsg = 'Face validation failed. Please try another image with better lighting and a clear view of your face.';
+        setVerificationError(errorMsg);
+        setIsValidatingFace(false);
+        toast.error(`❌ ${errorMsg}`);
       }
     };
     reader.readAsDataURL(file);
@@ -432,11 +538,12 @@ export default function AvatarUploadModal({
   // Close modal and reset state
   const handleClose = () => {
     setSelectedFile(null);
-    setFaceSwappedBlob(null); // ✅ Reset face-swapped blob
+    setFaceSwappedBlob(null);
     setPreview({});
     setStatus('idle');
     setProgress(0);
     setIsDragOver(false);
+    setVerificationError(null); // ✅ Clear verification errors
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -650,6 +757,26 @@ export default function AvatarUploadModal({
               )}
             </div>
           </div>
+
+          {/* ✅ Face Verification Error Display */}
+          {verificationError && !selectedFile && (
+            <div className="p-4 bg-red-50 dark:bg-red-950/20 border-2 border-red-200 dark:border-red-800 rounded-lg">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-red-800 dark:text-red-400 mb-1">
+                    Face Verification Failed
+                  </h3>
+                  <p className="text-sm text-red-700 dark:text-red-300">
+                    {verificationError}
+                  </p>
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-2">
+                    💡 Tip: Make sure you're uploading your own photo, not someone else's. The photo should clearly show your face.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Avatar Review Form */}
           {selectedFile && preview.original && (

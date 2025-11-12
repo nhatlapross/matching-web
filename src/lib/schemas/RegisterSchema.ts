@@ -23,6 +23,11 @@ export const profileSchema = z.object({
     }, {
         message: 'You must be at least 18 to use this app'
     }),
+    // Optional fields for complete profile
+    referenceFaceUrl: z.string().optional(),
+    referenceFaceDescriptor: z.string().optional(),
+    avatarUrl: z.string().optional(),
+    interests: z.string().optional(),
 });
 
 export const combinedRegisterSchema = registerSchema.and(profileSchema);

@@ -18,6 +18,19 @@ import { Loader2, RefreshCw, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getMessageThread } from "@/app/actions/messageActions";
 
+type GiftNotification = {
+  id: string;
+  type: 'gift';
+  senderId: string;
+  senderName: string;
+  giftType: string;
+  giftEmoji: string;
+  amount: number;
+  message: string;
+  timestamp: string;
+  isSuiTransfer?: boolean;
+};
+
 type Props = {
   initialMessages: {
     messages: MessageDto[];
@@ -41,6 +54,7 @@ export default function MessageList({
   const [dbMessages, setDbMessages] = useState(
     initialMessages.messages
   );
+  const [giftNotifications, setGiftNotifications] = useState<GiftNotification[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const setReadCount = useRef(false);
@@ -105,28 +119,47 @@ export default function MessageList({
     []
   );
 
-  // Pusher for real-time database messages
+  // Handle gift received
+  const handleGiftReceived = useCallback((data: {
+    senderId: string;
+    senderName: string;
+    giftType: string;
+    giftEmoji: string;
+    amount: number;
+    message: string;
+    timestamp: string;
+    isSuiTransfer?: boolean;
+  }) => {
+    // Only show in chat if it's from the current chat recipient
+    if (data.senderId === recipientId) {
+      const giftNotif: GiftNotification = {
+        id: `gift-${Date.now()}`,
+        type: 'gift',
+        ...data,
+      };
+      setGiftNotifications(prev => [...prev, giftNotif]);
+    }
+  }, [recipientId]);
+
+  // Pusher for real-time database messages and gifts
   useEffect(() => {
-    const channel =
-      pusherClient.subscribe(chatId);
+    const channel = pusherClient.subscribe(chatId);
     channel.bind("message:new", handleNewMessage);
-    channel.bind(
-      "messages:read",
-      handleReadMessages
-    );
+    channel.bind("messages:read", handleReadMessages);
+
+    // Also subscribe to private channel for gifts
+    const privateChannel = pusherClient.subscribe(`private-${currentUserId}`);
+    privateChannel.bind("gift:received", handleGiftReceived);
 
     return () => {
       channel.unsubscribe();
-      channel.unbind(
-        "message:new",
-        handleNewMessage
-      );
-      channel.unbind(
-        "messages:read",
-        handleReadMessages
-      );
+      channel.unbind("message:new", handleNewMessage);
+      channel.unbind("messages:read", handleReadMessages);
+      
+      privateChannel.unbind("gift:received", handleGiftReceived);
+      privateChannel.unsubscribe();
     };
-  }, [chatId, handleNewMessage, handleReadMessages]);
+  }, [chatId, currentUserId, handleNewMessage, handleReadMessages, handleGiftReceived]);
 
   // Auto-refresh off-chain messages (polling fallback if Pusher fails)
   useEffect(() => {
@@ -197,7 +230,7 @@ export default function MessageList({
 
       {/* Messages */}
       <div className="space-y-2">
-        {displayMessages.length === 0 ? (
+        {displayMessages.length === 0 && giftNotifications.length === 0 ? (
           <div className="text-center text-muted-foreground py-8">
             {onChainLoading ? (
               <div className="flex items-center justify-center gap-2">
@@ -210,6 +243,7 @@ export default function MessageList({
           </div>
         ) : (
           <>
+            {/* Display messages */}
             {hasOnChainChat ? (
               // On-chain messages
               onChainMessages.map((message) => (
@@ -253,6 +287,38 @@ export default function MessageList({
                 />
               ))
             )}
+            
+            {/* Display gift notifications */}
+            {giftNotifications.map((gift) => {
+              const amountText = gift.amount > 1 ? ` x${gift.amount}` : '';
+              const giftText = gift.isSuiTransfer 
+                ? `${gift.amount} SUI` 
+                : `${gift.giftEmoji} ${gift.giftType}${amountText}`;
+
+              return (
+                <div key={gift.id} className="flex justify-center my-4">
+                  <div className="max-w-[85%] md:max-w-[70%] px-4 py-3 rounded-lg bg-gradient-to-r from-pink-100 to-purple-100 dark:from-pink-900/30 dark:to-purple-900/30 border-2 border-pink-300 dark:border-pink-700">
+                    <div className="text-center space-y-1">
+                      <div className="text-2xl">{gift.giftEmoji}</div>
+                      <div className="font-semibold text-sm">
+                        {gift.senderName} sent you a gift!
+                      </div>
+                      <div className="text-lg font-bold text-pink-600 dark:text-pink-400">
+                        {giftText}
+                      </div>
+                      {gift.message && (
+                        <div className="text-xs text-gray-600 dark:text-gray-400 italic mt-2">
+                          "{gift.message}"
+                        </div>
+                      )}
+                      <div className="text-[10px] text-gray-500 mt-2">
+                        {new Date(gift.timestamp).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </>
         )}
       </div>

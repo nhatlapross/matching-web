@@ -79,7 +79,7 @@ export default function TopNavClient({ initialUserInfo, initialRole }: Props) {
           >
             <GiSelfLove size={40} className="text-gray-200 drop-shadow-lg" />
             <span className="text-3xl font-bold text-gray-200 drop-shadow-md">
-              MatchMe
+              Sui Match
             </span>
           </Link>
 

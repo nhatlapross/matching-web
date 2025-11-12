@@ -200,7 +200,7 @@ export default function BlockchainPhotoUpload({ onUploadSuccess }: Props) {
     }
   };
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -216,14 +216,123 @@ export default function BlockchainPhotoUpload({ onUploadSuccess }: Props) {
       return;
     }
 
-    setSelectedFile(file);
+    // ✅ Face verification before allowing file selection
+    setIsUploading(true);
+    toast.info("Verifying face in photo...");
 
-    // Create preview
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setPreview(e.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+    try {
+      // Load reference face
+      const refResponse = await fetch('/api/member/reference-face');
+      let referenceFaceDescriptor: any = null;
+      let faceVerificationEnabled = false;
+
+      if (refResponse.ok) {
+        const refData = await refResponse.json();
+        if (refData.referenceFaceLandmarks) {
+          const descriptorArray = JSON.parse(refData.referenceFaceLandmarks);
+          referenceFaceDescriptor = {
+            descriptor: new Float32Array(descriptorArray)
+          };
+          faceVerificationEnabled = refData.faceVerificationEnabled;
+        }
+      }
+
+      // Read file as data URL
+      const imageUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsDataURL(file);
+      });
+
+      // Validate face detection
+      const faceapi = await import('face-api.js');
+      
+      if (!faceapi.nets.ssdMobilenetv1.isLoaded) {
+        const MODEL_URL = '/models';
+        await Promise.all([
+          faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+        ]);
+      }
+
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      const hasValidFace = await new Promise<boolean>((resolve) => {
+        img.onload = async () => {
+          try {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              resolve(false);
+              return;
+            }
+
+            canvas.width = img.naturalWidth || img.width;
+            canvas.height = img.naturalHeight || img.height;
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+            const detection = await faceapi.detectSingleFace(canvas).withFaceLandmarks();
+            resolve(!!detection);
+          } catch (error) {
+            console.error('Face detection error:', error);
+            resolve(false);
+          }
+        };
+        
+        img.onerror = () => resolve(false);
+        img.src = imageUrl;
+      });
+
+      if (!hasValidFace) {
+        toast.error('❌ No face detected in image. Please choose a clear photo with your face visible.');
+        setIsUploading(false);
+        return;
+      }
+
+      // Verify face matches reference if enabled
+      if (faceVerificationEnabled && referenceFaceDescriptor) {
+        const { extractFaceDescriptor } = await import('@/utils/faceVerification');
+        const uploadedDescriptor = await extractFaceDescriptor(imageUrl);
+
+        if (!uploadedDescriptor) {
+          toast.error('❌ Cannot extract face features. Please choose a clearer photo.');
+          setIsUploading(false);
+          return;
+        }
+
+        const distance = faceapi.euclideanDistance(
+          referenceFaceDescriptor.descriptor,
+          uploadedDescriptor.descriptor
+        );
+
+        const similarityScore = Math.round((1 - distance) * 100);
+
+        if (distance >= 0.55) {
+          toast.error(
+            `❌ This photo doesn't match your reference face (similarity: ${similarityScore}%). Please use your own photo.`,
+            { autoClose: 5000 }
+          );
+          setIsUploading(false);
+          return;
+        }
+
+        toast.success(`✅ Face verified (similarity: ${similarityScore}%)`);
+      } else {
+        toast.success('✅ Face detected in image!');
+      }
+
+      // All checks passed - set file and preview
+      setSelectedFile(file);
+      setPreview(imageUrl);
+      setIsUploading(false);
+
+    } catch (error) {
+      console.error('Face validation error:', error);
+      toast.error('Face validation failed. Please try another image.');
+      setIsUploading(false);
+    }
   };
 
   const uploadToBlockchain = async () => {

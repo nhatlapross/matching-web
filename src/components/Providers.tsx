@@ -18,6 +18,7 @@ import { CurrentUserProvider } from '@/contexts/CurrentUserContext'
 import { Web3ModalProvider as Web3ModalContextProvider } from '@/contexts/Web3ModalContext'
 import { SignInWithWalletDialog } from './SignInWithWalletDialog'
 import AuthStateSync from './AuthStateSync'
+import GiftNotificationListener from './notifications/GiftNotificationListener'
 import dynamic from 'next/dynamic'
 
 // Load Web3ModalProvider only on client-side to avoid SSR issues with indexedDB
@@ -76,6 +77,7 @@ export default function Providers({
   return (
     <SessionProvider>
       <AuthStateSync />
+      {userId && <GiftNotificationListener userId={userId} />}
       <QueryClientProvider client={queryClient}>
         <Web3ModalProvider>
           <Web3ModalContextProvider>

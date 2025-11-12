@@ -64,6 +64,7 @@ export default function EditForm({
         description: member.description,
         city: member.city,
         country: member.country,
+        interests: (member as any).interests?.join(', ') || '',
       });
     }
   }, [member, reset]);
@@ -202,6 +203,30 @@ export default function EditForm({
             </p>
           )}
         </div>
+      </div>
+
+      {/* Interests Field */}
+      <div className="space-y-1.5 md:space-y-2">
+        <Label htmlFor="interests" className="text-sm md:text-base font-medium">
+          Interests
+        </Label>
+        <Input
+          id="interests"
+          {...register("interests")}
+          defaultValue={(member as any).interests?.join(', ') || ''}
+          placeholder="Travel, Reading, Sports, Music..."
+          className="h-10 md:h-12 text-sm md:text-base"
+          aria-invalid={!!errors.interests}
+        />
+        <p className="text-xs text-muted-foreground">
+          Separate interests with commas
+        </p>
+        {errors.interests && (
+          <p className="text-xs md:text-sm text-destructive flex items-center gap-1">
+            <AlertCircle className="h-3 w-3 flex-shrink-0" />
+            {errors.interests.message}
+          </p>
+        )}
       </div>
 
       {/* Server Error Alert */}

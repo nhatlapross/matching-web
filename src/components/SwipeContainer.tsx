@@ -7,6 +7,8 @@ import { Heart, X, RotateCcw, Info } from "lucide-react";
 import type { Member } from "@prisma/client";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
+import { MatchingGameModal } from "@/components/matching-games";
+import { useBlockchainMatch } from "@/hooks/useBlockchainMatch";
 
 type Props = {
   initialMembers: (Member & {
@@ -29,9 +31,12 @@ export default function SwipeContainer({
   myProfileObjectId,
 }: Props) {
   const router = useRouter();
+  const { createMatchOnChain, isCreatingMatch } = useBlockchainMatch();
   const [members, setMembers] = useState(initialMembers);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showGameModal, setShowGameModal] = useState(false);
+  const [pendingSwipeMember, setPendingSwipeMember] = useState<typeof currentMember | null>(null);
 
   const currentMember = members[currentIndex];
   const hasMore = currentIndex < members.length - 1;
@@ -40,24 +45,18 @@ export default function SwipeContainer({
     async (direction: "left" | "right") => {
       if (!currentMember || isProcessing) return;
 
+      // ✅ If swipe right, show game modal instead of direct like
+      if (direction === "right") {
+        setPendingSwipeMember(currentMember);
+        setShowGameModal(true);
+        return;
+      }
+
+      // Swipe left - process normally
       setIsProcessing(true);
 
       try {
-        // Call the swipe action (will handle blockchain randomness)
-        const result = await onSwipeAction(currentMember.userId, direction);
-
-        // Show feedback
-        if (direction === "right") {
-          if (result?.isMatch) {
-            toast.success(`🎉 It's a match with ${currentMember.name}!`, {
-              position: "top-center",
-            });
-          } else {
-            toast.success(`You liked ${currentMember.name}!`);
-          }
-        }
-
-        // Move to next card
+        await onSwipeAction(currentMember.userId, direction);
         setCurrentIndex((prev) => prev + 1);
       } catch (error) {
         console.error("Swipe error:", error);
@@ -68,6 +67,73 @@ export default function SwipeContainer({
     },
     [currentMember, isProcessing, onSwipeAction]
   );
+
+  // Handle game completion - send the like
+  const handleGameSuccess = useCallback(async () => {
+    if (!pendingSwipeMember) return;
+
+    console.log('[SwipeContainer] Game completed for:', pendingSwipeMember.userId);
+    setIsProcessing(true);
+
+    try {
+      const result = await onSwipeAction(pendingSwipeMember.userId, "right");
+      console.log('[SwipeContainer] onSwipeAction result:', result);
+
+      // Show feedback
+      if (result?.isMatch) {
+        console.log('[SwipeContainer] 🎉 Mutual match detected!');
+        toast.success(`🎉 It's a match with ${pendingSwipeMember.name}!`, {
+          position: "top-center",
+        });
+
+        // ✅ Create on-chain match if both users have blockchain profiles
+        const targetWalletAddress = result.targetUser?.walletAddress;
+        const targetProfileObjectId = result.targetUser?.profileObjectId;
+
+        console.log('[SwipeContainer] Blockchain match check:', {
+          myProfileObjectId,
+          targetWalletAddress,
+          targetProfileObjectId,
+          hasAllData: !!(myProfileObjectId && targetWalletAddress && targetProfileObjectId)
+        });
+
+        if (myProfileObjectId && targetWalletAddress && targetProfileObjectId) {
+          console.log('[SwipeContainer] ✅ Creating on-chain match...');
+
+          // Create blockchain match in background (don't block UI)
+          createMatchOnChain({
+            targetUserAddress: targetWalletAddress,
+            myProfileObjectId: myProfileObjectId,
+            compatibilityScore: 95
+          }).then((success) => {
+            if (success) {
+              console.log('[SwipeContainer] ✅ On-chain match created successfully!');
+              toast.success('✨ Match recorded on blockchain!');
+            } else {
+              console.log('[SwipeContainer] ❌ On-chain match creation returned false');
+            }
+          }).catch((error) => {
+            console.error('[SwipeContainer] ❌ Failed to create on-chain match:', error);
+            // Don't show error toast - match is already created in database
+          });
+        } else {
+          console.log('[SwipeContainer] ⚠️ Skipping on-chain match - missing blockchain data');
+        }
+      } else {
+        console.log('[SwipeContainer] Not a mutual match, just a like');
+        toast.success(`Game completed! Like sent to ${pendingSwipeMember.name}!`);
+      }
+
+      // Move to next card
+      setCurrentIndex((prev) => prev + 1);
+      setPendingSwipeMember(null);
+    } catch (error) {
+      console.error("[SwipeContainer] ❌ Swipe error:", error);
+      toast.error("Failed to send like");
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [pendingSwipeMember, onSwipeAction, myProfileObjectId, createMatchOnChain]);
 
   const handleUndo = useCallback(() => {
     if (currentIndex > 0) {
@@ -223,6 +289,24 @@ export default function SwipeContainer({
           <Info className="h-6 w-6" />
         </Button>
       </div>
+
+      {/* Matching Game Modal */}
+      {pendingSwipeMember && (
+        <MatchingGameModal
+          isOpen={showGameModal}
+          onClose={() => {
+            setShowGameModal(false);
+            setPendingSwipeMember(null);
+          }}
+          targetUser={{
+            id: pendingSwipeMember.userId,
+            name: pendingSwipeMember.name,
+            image: avatarUrls[pendingSwipeMember.userId] || pendingSwipeMember.image || undefined,
+            interests: (pendingSwipeMember as any).interests || []
+          }}
+          onSuccess={handleGameSuccess}
+        />
+      )}
     </div>
   );
 }
