@@ -20,13 +20,21 @@ export interface FaceVerificationResult {
 }
 
 /**
- * Ngưỡng Euclidean distance cho face-api.js FaceNet
+ * Ngưỡng cho face verification score (0-100)
+ * Dựa trên combined score từ facial ratios, cosine similarity, và euclidean distance
+ */
+const VERIFICATION_THRESHOLDS = {
+  HIGH: 75,      // High confidence match
+  MEDIUM: 60,    // Medium confidence match
+  MIN: 50,       // Minimum threshold for potential match
+}
+
+/**
+ * Ngưỡng Euclidean distance cho face-api.js FaceNet descriptors
  * Dựa trên research và best practices:
  * - < 0.45: Chắc chắn cùng người (HIGH confidence)
  * - 0.45 - 0.55: Nghi ngờ, cần xem xét (MEDIUM - reject để an toàn)
  * - > 0.55: Chắc chắn khác người (LOW)
- *
- * Note: Với production app, nên dùng threshold 0.5 hoặc thấp hơn để tránh false positive
  */
 const FACENET_THRESHOLDS = {
   HIGH: 0.45,     // Accept: Very confident same person
@@ -39,13 +47,22 @@ const FACENET_THRESHOLDS = {
 async function loadFaceApiModels() {
   const faceapi = await import('face-api.js')
 
+  const MODEL_URL = '/models'
+  const modelsToLoad = []
+
+  // Check each model individually
   if (!faceapi.nets.ssdMobilenetv1.isLoaded) {
-    const MODEL_URL = '/models'
-    await Promise.all([
-      faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
-      faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL), // FaceNet model
-    ])
+    modelsToLoad.push(faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL))
+  }
+  if (!faceapi.nets.faceLandmark68Net.isLoaded) {
+    modelsToLoad.push(faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL))
+  }
+  if (!faceapi.nets.faceRecognitionNet.isLoaded) {
+    modelsToLoad.push(faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL))
+  }
+
+  if (modelsToLoad.length > 0) {
+    await Promise.all(modelsToLoad)
   }
 
   return faceapi

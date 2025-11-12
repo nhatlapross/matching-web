@@ -113,7 +113,7 @@ export default function LoginForm() {
             <GiPadlock size={30} />
             <h1 className="text-3xl font-semibold">Login</h1>
           </div>
-          <p className="text-neutral-500">Welcome back to MatchMe!</p>
+          <p className="text-neutral-500">Welcome back to SUI match!</p>
         </div>
       </CardHeader>
       <CardBody>

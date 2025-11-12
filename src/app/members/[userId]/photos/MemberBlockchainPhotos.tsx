@@ -156,6 +156,28 @@ export default function MemberBlockchainPhotos({ walletAddress }: Props) {
                 // 1 = Verified Only - only verified users
                 // 2 = Matches Only - only matches can decrypt
 
+                // Parse seal_policy_id - it might be wrapped in Option<ID>
+                let sealPolicyId: string | undefined = undefined;
+                if (mFields.seal_policy_id) {
+                  // Check if it's wrapped in Option (Move's Some/None)
+                  if (typeof mFields.seal_policy_id === 'object' && mFields.seal_policy_id !== null) {
+                    // Option<ID> format: { vec: [id] } or { some: id }
+                    if ('vec' in mFields.seal_policy_id && Array.isArray(mFields.seal_policy_id.vec)) {
+                      sealPolicyId = mFields.seal_policy_id.vec[0] || undefined;
+                    } else if ('some' in mFields.seal_policy_id) {
+                      sealPolicyId = mFields.seal_policy_id.some;
+                    }
+                  } else if (typeof mFields.seal_policy_id === 'string' && mFields.seal_policy_id.length > 0) {
+                    sealPolicyId = mFields.seal_policy_id;
+                  }
+                }
+
+                console.log(`[MemberPhotos] Photo ${mediaId}:`, {
+                  visibilityLevel,
+                  sealPolicyId,
+                  rawSealPolicy: mFields.seal_policy_id,
+                });
+
                 // For now, we'll show all photos, but only allow decryption for matches
                 const media: BlockchainMedia = {
                   id: mediaId,
@@ -164,7 +186,7 @@ export default function MemberBlockchainPhotos({ walletAddress }: Props) {
                   visibilityLevel,
                   caption: mFields.caption || "",
                   createdAt,
-                  sealPolicyId: mFields.seal_policy_id || undefined,
+                  sealPolicyId,
                   url: `${AGGREGATOR_URL}/v1/${mFields.walrus_blob_id}`,
                 };
 
@@ -233,12 +255,12 @@ export default function MemberBlockchainPhotos({ walletAddress }: Props) {
   };
 
   // Decrypt media silently (for auto-decrypt)
-  const decryptMediaSilent = async (photo: BlockchainMedia, throwError = false) => {
+  const decryptMediaSilent = async (photo: BlockchainMedia, throwError = false): Promise<string | null> => {
     if (!account || !photo.sealPolicyId) {
       if (throwError) {
         throw new Error("Wallet not connected or no seal policy");
       }
-      return;
+      return null;
     }
 
     try {
@@ -280,7 +302,59 @@ export default function MemberBlockchainPhotos({ walletAddress }: Props) {
         });
       }
 
-      // Step 4: Build transaction with seal_approve_match
+      // Step 4: Verify MatchAllowlist before building transaction
+      console.log("[MemberPhotos] Checking MatchAllowlist:", photo.sealPolicyId);
+      console.log("[MemberPhotos] Current user:", account.address);
+      console.log("[MemberPhotos] Profile owner:", walletAddress);
+
+      // Fetch the MatchAllowlist to verify access
+      try {
+        const allowlistObj = await client.getObject({
+          id: photo.sealPolicyId,
+          options: { showContent: true, showType: true },
+        });
+
+        console.log("[MemberPhotos] Allowlist object:", allowlistObj);
+
+        if (allowlistObj.data?.content && "fields" in allowlistObj.data.content) {
+          const fields = allowlistObj.data.content.fields as any;
+          console.log("[MemberPhotos] Allowlist fields:", fields);
+          console.log("[MemberPhotos] user_a:", fields.user_a);
+          console.log("[MemberPhotos] user_b:", fields.user_b);
+          console.log("[MemberPhotos] active:", fields.active);
+
+          // Normalize addresses for comparison (ensure 0x prefix and lowercase)
+          const normalizeAddress = (addr: string) => {
+            const normalized = addr.toLowerCase().startsWith('0x') ? addr.toLowerCase() : `0x${addr.toLowerCase()}`;
+            return normalized;
+          };
+
+          const currentUser = normalizeAddress(account.address);
+          const userA = normalizeAddress(fields.user_a);
+          const userB = normalizeAddress(fields.user_b);
+
+          console.log("[MemberPhotos] Normalized addresses:");
+          console.log("  Current:", currentUser);
+          console.log("  user_a:", userA);
+          console.log("  user_b:", userB);
+
+          // Check if current user is in the allowlist
+          if (currentUser !== userA && currentUser !== userB) {
+            throw new Error("You are not authorized to view this photo - not in match allowlist");
+          }
+
+          if (!fields.active) {
+            throw new Error("This match allowlist is no longer active");
+          }
+
+          console.log("[MemberPhotos] ✅ Access granted - user is in allowlist");
+        }
+      } catch (err: any) {
+        console.error("[MemberPhotos] Failed to verify allowlist:", err);
+        throw new Error(`Access verification failed: ${err.message}`);
+      }
+
+      // Step 5: Build transaction with seal_approve_match
       const tx = new Transaction();
       const encryptionIdBytes = fromHex(encryptedId);
 
@@ -322,6 +396,9 @@ export default function MemberBlockchainPhotos({ walletAddress }: Props) {
       ));
 
       console.log("[MemberPhotos] Auto-decrypted photo:", photo.id);
+      
+      // Return the decrypted URL
+      return decryptedUrl;
     } catch (error: any) {
       console.error("[MemberPhotos] Auto-decrypt error for", photo.id, ":", error.message);
       // If throwError is true, re-throw for user feedback
@@ -329,6 +406,7 @@ export default function MemberBlockchainPhotos({ walletAddress }: Props) {
         throw error;
       }
       // Otherwise, don't show error to user - they might not have access
+      return null;
     }
   };
 
@@ -348,21 +426,34 @@ export default function MemberBlockchainPhotos({ walletAddress }: Props) {
 
     try {
       // Call silent decrypt with throwError flag
-      await decryptMediaSilent(photo, true);
-
-      // Wait a bit for state update
-      await new Promise(resolve => setTimeout(resolve, 100));
+      const decryptedUrl = await decryptMediaSilent(photo, true);
 
       // Check if decryption actually succeeded
-      const updatedPhoto = photos.find(p => p.id === photo.id);
-      if (updatedPhoto?.decryptedUrl) {
+      if (decryptedUrl) {
         toast.success("Photo decrypted successfully!");
       } else {
-        throw new Error("Decryption failed - no decrypted URL");
+        throw new Error("Decryption failed - no decrypted URL returned");
       }
     } catch (error: any) {
       console.error("[MemberPhotos] Decrypt error:", error);
-      toast.error(error.message || "You don't have access to view this photo");
+      
+      // Show clear English error message
+      let errorMessage = "You do not have permission to view this image";
+      
+      if (error.message?.includes("not found") || error.message?.includes("Could not find")) {
+        errorMessage = "You do not have permission to view this image";
+      } else if (error.message?.includes("Wallet not connected")) {
+        errorMessage = "Please connect your wallet to view this photo";
+      } else if (error.message?.includes("seal policy")) {
+        errorMessage = "Cannot decrypt: Invalid encryption policy";
+      } else if (error.message?.includes("All aggregators failed")) {
+        errorMessage = "Failed to load image from storage";
+      }
+      
+      toast.error(errorMessage, {
+        position: "top-center",
+        autoClose: 4000,
+      });
     } finally {
       setDecryptingId(null);
     }
@@ -403,22 +494,9 @@ export default function MemberBlockchainPhotos({ walletAddress }: Props) {
     );
   }
 
-  // Filter photos to only show decrypted ones, public, or all-matches
-  const visiblePhotos = photos.filter(photo => {
-    // Show if already decrypted
-    if (photo.decryptedUrl) return true;
-
-    // Show if public (visibilityLevel === 0)
-    if (photo.visibilityLevel === 0) return true;
-
-    // Show if all-matches (visibilityLevel === 1) - accessible to all matched users
-    if (photo.visibilityLevel === 1) return true;
-
-    // Hide encrypted photos that haven't been decrypted (visibilityLevel === 2)
-    return false;
-  });
-
-  const encryptedCount = photos.filter(p => p.sealPolicyId && !p.decryptedUrl).length;
+  // Show all photos - let users try to decrypt
+  const visiblePhotos = photos;
+  const encryptedCount = photos.filter(p => p.sealPolicyId && !p.decryptedUrl && p.visibilityLevel === 2).length;
 
   // Pagination logic
   const totalPages = Math.ceil(visiblePhotos.length / itemsPerPage);
@@ -484,10 +562,21 @@ export default function MemberBlockchainPhotos({ walletAddress }: Props) {
           <Card key={photo.id} className="border-2 border-purple-100 overflow-hidden">
             <CardContent className="p-0">
               <div className="relative aspect-square bg-gradient-to-br from-purple-50 to-pink-50">
-                {photo.decryptedUrl || photo.visibilityLevel === 0 || photo.visibilityLevel === 1 ? (
-                  // Show decrypted image OR public/all-matches image directly
+                {/* Only show image if:
+                    1. Already decrypted (has decryptedUrl) - for encrypted photos
+                    2. Not encrypted (no sealPolicyId) - for public/all-matches photos
+                */}
+                {photo.decryptedUrl ? (
+                  // Show decrypted image
                   <img
-                    src={photo.decryptedUrl || photo.url || `${AGGREGATOR_URLS[0]}/${photo.blobId}`}
+                    src={photo.decryptedUrl}
+                    alt={photo.caption || "Photo"}
+                    className="w-full h-full object-cover"
+                  />
+                ) : !photo.sealPolicyId ? (
+                  // Show public unencrypted image
+                  <img
+                    src={photo.url || `${AGGREGATOR_URLS[0]}/${photo.blobId}`}
                     alt={photo.caption || "Photo"}
                     className="w-full h-full object-cover"
                     onError={(e) => {
@@ -504,13 +593,13 @@ export default function MemberBlockchainPhotos({ walletAddress }: Props) {
                   />
                 ) : (
                   // Show encrypted placeholder for private photos
-                  <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900">
                     <div className="text-center p-4">
-                      <Lock className="w-8 h-8 mx-auto mb-2 text-purple-400" />
-                      <p className="text-xs text-purple-600 font-medium">
-                        Encrypted Photo
+                      <Lock className="w-8 h-8 mx-auto mb-2 text-purple-400 animate-pulse" />
+                      <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">
+                        Private Photo
                       </p>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                         {photo.blobId.slice(0, 8)}...
                       </p>
                       {photo.sealPolicyId && account && (
@@ -519,7 +608,7 @@ export default function MemberBlockchainPhotos({ walletAddress }: Props) {
                           variant="outline"
                           onClick={() => decryptMedia(photo)}
                           disabled={decryptingId === photo.id}
-                          className="mt-2"
+                          className="mt-2 text-xs"
                         >
                           {decryptingId === photo.id ? (
                             <>
@@ -529,10 +618,15 @@ export default function MemberBlockchainPhotos({ walletAddress }: Props) {
                           ) : (
                             <>
                               <Unlock className="w-3 h-3 mr-1" />
-                              Decrypt
+                              Try Decrypt
                             </>
                           )}
                         </Button>
+                      )}
+                      {!account && (
+                        <p className="text-xs text-gray-400 mt-2">
+                          Connect wallet to view
+                        </p>
                       )}
                     </div>
                   </div>

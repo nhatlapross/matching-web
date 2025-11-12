@@ -41,6 +41,7 @@ export default function MemberSidebar({ member, navLinks }: Props) {
     publicUrl?: string;
     privateUrl?: string;
   } | null>(null);
+  const [isLoadingAvatar, setIsLoadingAvatar] = React.useState(true);
 
   // Check if this is current user's profile
   const isCurrentUser = session?.user?.id === member.userId;
@@ -53,6 +54,7 @@ export default function MemberSidebar({ member, navLinks }: Props) {
   // Fetch user's avatar from avatar service
   React.useEffect(() => {
     const fetchAvatar = async () => {
+      setIsLoadingAvatar(true);
       try {
         if (isCurrentUser) {
           // For current user, use avatar info API to get both avatars
@@ -102,6 +104,8 @@ export default function MemberSidebar({ member, navLinks }: Props) {
         }
       } catch (error) {
         console.error('Failed to fetch avatar:', error);
+      } finally {
+        setIsLoadingAvatar(false);
       }
     };
 
@@ -180,13 +184,20 @@ export default function MemberSidebar({ member, navLinks }: Props) {
         <div className="flex flex-col items-center space-y-3 md:space-y-4 pt-4 md:pt-6">
           {/* Clickable Profile Avatar */}
           <div className="relative group">
+            {/* Loading Skeleton */}
+            {isLoadingAvatar && (
+              <div className="absolute inset-0 bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 rounded-full animate-pulse z-20" 
+                style={{ width: '160px', height: '160px' }}
+              />
+            )}
+            
             <div className="absolute -inset-1 bg-gradient-to-r from-pink-600 to-purple-600 rounded-full opacity-75 blur group-hover:opacity-100 transition duration-300" />
-            <div className="relative">
+            <div className={cn("relative", isLoadingAvatar && "opacity-0")}>
               <ClickableAvatar
                 currentAvatar={{
                   publicUrl: isCurrentUser 
-                    ? (avatarData?.privateUrl || avatarData?.publicUrl || member.image || undefined)
-                    : (avatarData?.publicUrl || avatarData?.privateUrl || member.image || undefined),
+                    ? (avatarData?.privateUrl || avatarData?.publicUrl || undefined)
+                    : (avatarData?.publicUrl || avatarData?.privateUrl || undefined),
                   privateUrl: avatarData?.privateUrl || undefined
                 }}
                 onViewAvatar={handleViewAvatar}

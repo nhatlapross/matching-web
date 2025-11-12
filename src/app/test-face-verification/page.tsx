@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { Card, CardBody, CardHeader, Button, Image, Divider, Modal, ModalContent, ModalHeader, ModalBody, useDisclosure } from '@nextui-org/react'
 import { Upload, CheckCircle, XCircle, AlertCircle, Video, X } from 'lucide-react'
-import { extractFaceDescriptor, compareFaceDescriptors, FaceDescriptor } from '@/utils/faceVerification'
+import { extractFaceDescriptor, compareFaceDescriptors } from '@/utils/faceVerification'
+import type { FaceDescriptor } from '@/utils/faceVerification'
 import LivenessCameraCapture from '@/components/face-verification/LivenessCameraCapture'
 import { toast } from 'react-toastify'
 

@@ -157,6 +157,35 @@ export async function completeSocialLoginProfile(
       return { status: 'error', error: 'User not found' }
     }
 
+    // Prepare member data
+    const memberData: any = {
+      name: data.name,
+      image: (data as any).avatarUrl || session.user.image,
+      gender: data.gender,
+      dateOfBirth: new Date(data.dateOfBirth),
+      description: data.description,
+      city: data.city,
+      country: data.country,
+    }
+
+    // Add face verification data if provided
+    if ((data as any).referenceFaceUrl) {
+      memberData.referenceFaceUrl = (data as any).referenceFaceUrl
+      memberData.referenceFaceLandmarks = (data as any).referenceFaceDescriptor
+      memberData.faceVerificationEnabled = true
+      memberData.referenceFaceUploadedAt = new Date()
+    }
+
+    // Add interests as array if provided
+    if ((data as any).interests) {
+      // Parse interests from comma-separated string to array
+      const interestsString = (data as any).interests as string;
+      memberData.interests = interestsString
+        .split(',')
+        .map(tag => tag.trim())
+        .filter(tag => tag.length > 0);
+    }
+
     if (existingUser.member) {
       await prisma.user.update({
         where: { id: session.user.id },
@@ -164,13 +193,7 @@ export async function completeSocialLoginProfile(
           profileComplete: true,
           member: {
             update: {
-              name: data.name,
-              image: session.user.image,
-              gender: data.gender,
-              dateOfBirth: new Date(data.dateOfBirth),
-              description: data.description,
-              city: data.city,
-              country: data.country,
+              ...memberData,
               updated: new Date(),
             },
           },
@@ -183,15 +206,7 @@ export async function completeSocialLoginProfile(
         data: {
           profileComplete: true,
           member: {
-            create: {
-              name: data.name,
-              image: session.user.image,
-              gender: data.gender,
-              dateOfBirth: new Date(data.dateOfBirth),
-              description: data.description,
-              city: data.city,
-              country: data.country,
-            },
+            create: memberData,
           },
         },
       })

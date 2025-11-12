@@ -41,7 +41,7 @@ export default function LivenessCameraCapture({
   const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const faceapiRef = useRef<any>(null)
 
-  // Start camera khi user accept
+  // Start camera when user accepts
   const handleStartCamera = async () => {
     // Reset all challenges to ensure clean state
     const freshChallenges = generateLivenessChallenges()
@@ -57,7 +57,7 @@ export default function LivenessCameraCapture({
     try {
       // Check if mediaDevices is supported
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Browser không hỗ trợ camera API')
+        throw new Error('Browser does not support camera API')
       }
 
       // Load face-api.js models
@@ -65,10 +65,45 @@ export default function LivenessCameraCapture({
       faceapiRef.current = faceapi
 
       const MODEL_URL = '/models'
-      await Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-      ])
+      
+      // Only load models if not already loaded
+      // Use ssdMobilenetv1 instead of tinyFaceDetector for better compatibility
+      try {
+        if (!faceapi.nets.ssdMobilenetv1.isLoaded) {
+          console.log('Loading ssdMobilenetv1 from:', MODEL_URL)
+          try {
+            await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL)
+            console.log('✅ ssdMobilenetv1 loaded')
+          } catch (err) {
+            console.error('❌ Failed to load ssdMobilenetv1:', err)
+            throw err
+          }
+        }
+        
+        if (!faceapi.nets.faceLandmark68Net.isLoaded) {
+          console.log('Loading faceLandmark68Net from:', MODEL_URL)
+          try {
+            await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL)
+            console.log('✅ faceLandmark68Net loaded')
+          } catch (err) {
+            console.error('❌ Failed to load faceLandmark68Net:', err)
+            throw err
+          }
+        }
+        
+        console.log('✅ All models loaded successfully')
+      } catch (modelError) {
+        console.error('Error loading models:', modelError)
+        // Log more details
+        if (modelError instanceof Error) {
+          console.error('Model error details:', {
+            message: modelError.message,
+            stack: modelError.stack,
+            name: modelError.name
+          })
+        }
+        throw new Error('Failed to load AI models. Please refresh the page and try again.')
+      }
 
       // Request camera permission
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -122,18 +157,18 @@ export default function LivenessCameraCapture({
       await new Promise((resolve) => setTimeout(resolve, 200))
 
       startDetection()
-      toast.success('✅ Camera đã sẵn sàng!')
+      toast.success('✅ Camera ready!')
     } catch (error: any) {
       console.error('Error initializing camera:', error)
 
-      let errorMessage = 'Không thể mở camera. '
+      let errorMessage = 'Cannot open camera. '
 
       if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
-        errorMessage += 'Bạn đã từ chối quyền truy cập camera. Vui lòng cho phép trong cài đặt trình duyệt.'
+        errorMessage += 'You denied camera access. Please allow it in browser settings.'
       } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
-        errorMessage += 'Không tìm thấy camera. Vui lòng kiểm tra thiết bị.'
+        errorMessage += 'Camera not found. Please check your device.'
       } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
-        errorMessage += 'Camera đang được sử dụng bởi ứng dụng khác.'
+        errorMessage += 'Camera is being used by another application.'
       } else {
         errorMessage += error.message
       }
@@ -188,7 +223,7 @@ export default function LivenessCameraCapture({
     try {
       const faceapi = faceapiRef.current
       const detection = await faceapi
-        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
+        .detectSingleFace(videoRef.current)
         .withFaceLandmarks()
 
       if (detection) {
@@ -277,7 +312,7 @@ export default function LivenessCameraCapture({
       setCurrentChallengeIndex(nextIndex)
 
       // Play success sound
-      toast.success(`✅ Hoàn thành: ${updatedChallenges[index].instruction}`)
+      toast.success(`✅ Completed: ${updatedChallenges[index].instruction}`)
 
       // Small pause for user to see feedback
       await new Promise((resolve) => setTimeout(resolve, 400))
@@ -285,7 +320,7 @@ export default function LivenessCameraCapture({
       setChallenges(updatedChallenges)
 
       // All challenges completed - start countdown to capture
-      toast.success('🎉 Hoàn thành tất cả! Chuẩn bị chụp...')
+      toast.success('🎉 All completed! Preparing to capture...')
       await startCaptureCountdown()
     }
   }
@@ -323,7 +358,7 @@ export default function LivenessCameraCapture({
     stopCamera()
 
     // Call callback
-    toast.success('✅ Đã chụp ảnh khuôn mặt mẫu!')
+    toast.success('✅ Reference face photo captured!')
     onCaptureComplete(imageDataUrl)
   }
 
@@ -350,9 +385,9 @@ export default function LivenessCameraCapture({
         <CardBody className="space-y-6 py-8">
           <div className="text-center">
             <div className="text-6xl mb-4">🎥</div>
-            <h3 className="text-2xl font-bold mb-3">Xác thực người thật</h3>
+            <h3 className="text-2xl font-bold mb-3">Verify Real Person</h3>
             <p className="text-default-600">
-              Để chống giả mạo, bạn cần thực hiện các chuyển động đầu trước camera
+              To prevent fraud, you need to perform head movements in front of the camera
             </p>
           </div>
 
@@ -362,11 +397,11 @@ export default function LivenessCameraCapture({
               <Camera className="h-6 w-6 text-primary flex-shrink-0 mt-1" />
               <div>
                 <p className="font-semibold text-primary-900 mb-1">
-                  📹 Cần quyền truy cập Camera
+                  📹 Camera Access Required
                 </p>
                 <p className="text-sm text-primary-800">
-                  Sau khi click nút bên dưới, trình duyệt sẽ yêu cầu quyền truy cập camera.
-                  Vui lòng click <strong>"Cho phép"</strong> hoặc <strong>"Allow"</strong> để tiếp tục.
+                  After clicking the button below, your browser will request camera access.
+                  Please click <strong>"Allow"</strong> to continue.
                 </p>
               </div>
             </div>
@@ -374,33 +409,33 @@ export default function LivenessCameraCapture({
 
           <div className="bg-default-100 rounded-lg p-4 space-y-3">
             <h4 className="font-semibold flex items-center gap-2">
-              📋 Các bước thực hiện:
+              📋 Steps:
             </h4>
             <div className="space-y-2 text-sm">
               <div className="flex items-start gap-3">
                 <span className="text-2xl">1️⃣</span>
                 <div>
-                  <p className="font-medium">Click nút "Cho phép Camera"</p>
+                  <p className="font-medium">Click "Allow Camera"</p>
                   <p className="text-default-500 text-xs">
-                    Trình duyệt sẽ popup yêu cầu quyền
+                    Browser will show permission popup
                   </p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
                 <span className="text-2xl">2️⃣</span>
                 <div>
-                  <p className="font-medium">Thực hiện chuyển động theo hướng dẫn</p>
+                  <p className="font-medium">Follow the movement instructions</p>
                   <p className="text-default-500 text-xs">
-                    Quay trái 👈, quay phải 👉, ngước lên 👆, cúi xuống 👇
+                    Turn left 👈, turn right 👉, look up 👆, look down 👇
                   </p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
                 <span className="text-2xl">3️⃣</span>
                 <div>
-                  <p className="font-medium">Quay về giữa để chụp</p>
+                  <p className="font-medium">Return to center for capture</p>
                   <p className="text-default-500 text-xs">
-                    Countdown 3-2-1 rồi tự động chụp
+                    Countdown 3-2-1 then auto capture
                   </p>
                 </div>
               </div>
@@ -408,11 +443,11 @@ export default function LivenessCameraCapture({
           </div>
 
           <div className="bg-warning-50 border border-warning-200 rounded-lg p-3 text-sm">
-            <p className="font-medium text-warning-800 mb-1">⚠️ Lưu ý:</p>
+            <p className="font-medium text-warning-800 mb-1">⚠️ Important:</p>
             <ul className="text-warning-700 space-y-1 text-xs ml-4 list-disc">
-              <li>Đảm bảo đủ ánh sáng và khuôn mặt rõ ràng</li>
-              <li>Thực hiện chuyển động chậm rãi, không vội vàng</li>
-              <li>Không được dùng ảnh tĩnh hoặc video có sẵn</li>
+              <li>Ensure good lighting and clear face visibility</li>
+              <li>Perform movements slowly, don't rush</li>
+              <li>Cannot use static images or pre-recorded videos</li>
             </ul>
           </div>
 
@@ -424,7 +459,7 @@ export default function LivenessCameraCapture({
               startContent={<Camera className="h-6 w-6" />}
               onPress={handleStartCamera}
             >
-              ✅ Cho phép Camera & Bắt đầu
+              ✅ Allow Camera & Start
             </Button>
             <Button
               color="default"
@@ -432,7 +467,7 @@ export default function LivenessCameraCapture({
               size="lg"
               onPress={onCancel}
             >
-              Hủy bỏ
+              Cancel
             </Button>
           </div>
         </CardBody>
@@ -446,8 +481,8 @@ export default function LivenessCameraCapture({
       <Card className="w-full">
         <CardBody className="flex flex-col items-center justify-center py-12">
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-primary mb-4"></div>
-          <p className="text-lg font-medium mb-2">Đang khởi động camera...</p>
-          <p className="text-sm text-default-500">Vui lòng cho phép truy cập camera</p>
+          <p className="text-lg font-medium mb-2">Starting camera...</p>
+          <p className="text-sm text-default-500">Please allow camera access</p>
         </CardBody>
       </Card>
     )
@@ -457,7 +492,7 @@ export default function LivenessCameraCapture({
   return (
     <Card className="w-full">
       <CardBody className="space-y-4">
-        {/* Video & Canvas */}
+        {/* Video & Canvas with Overlay Instructions */}
         <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
           <video
             ref={videoRef}
@@ -471,138 +506,73 @@ export default function LivenessCameraCapture({
 
           {/* Countdown overlay */}
           {countdown !== null && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+            <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-20">
               <div className="text-white text-9xl font-bold animate-pulse">
                 {countdown}
               </div>
             </div>
           )}
 
-          {/* Face detection indicator */}
-          <div className="absolute top-4 left-4">
+          {/* Face detection indicator - top left */}
+          <div className="absolute top-4 left-4 z-10">
             {faceDetected ? (
-              <Chip color="success" startContent={<CheckCircle className="h-4 w-4" />}>
-                Phát hiện khuôn mặt
+              <Chip color="success" size="sm" startContent={<CheckCircle className="h-3 w-3" />}>
+                Face detected
               </Chip>
             ) : (
-              <Chip color="danger" startContent={<XCircle className="h-4 w-4" />}>
-                Không thấy khuôn mặt
+              <Chip color="danger" size="sm" startContent={<XCircle className="h-3 w-3" />}>
+                No face
               </Chip>
             )}
           </div>
 
-          {/* Head pose debug info */}
-          {headPose && (
-            <div className="absolute top-4 right-4 bg-black/70 text-white text-xs p-2 rounded">
-              <div>Pose: {headPose.currentPose}</div>
-              <div>Confidence: {headPose.confidence}%</div>
-              <div>Yaw: {headPose.yaw}° | Pitch: {headPose.pitch}°</div>
+          {/* Instruction overlay - center */}
+          {instruction && !countdown && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+              <div className="bg-black/70 backdrop-blur-sm rounded-2xl px-8 py-6 text-center">
+                <div className="text-7xl mb-3">{instruction.emoji}</div>
+                <h3 className="text-3xl font-bold text-white mb-2">
+                  {instruction.text}
+                </h3>
+                {headPose && isPoseMatched(headPose.currentPose, currentChallenge.pose, headPose.confidence, 50) && (
+                  <div className="mt-3">
+                    <p className="text-lg font-bold text-success-400 mb-2">
+                      ✅ Hold... {poseHoldProgress}%
+                    </p>
+                    <div className="w-64 bg-white/20 rounded-full h-2 overflow-hidden mx-auto">
+                      <div
+                        className="bg-success-400 h-full transition-all duration-100"
+                        style={{ width: `${poseHoldProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
-        </div>
 
-        {/* Progress */}
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm">
-            <span>Tiến trình</span>
-            <span className="font-semibold">{Math.round(progress)}%</span>
+          {/* Progress bar - bottom */}
+          <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent z-10">
+            <Progress
+              value={progress}
+              color="success"
+              size="sm"
+              aria-label="Verification progress"
+              className="w-full"
+            />
           </div>
-          <Progress
-            value={progress}
-            color="success"
-            aria-label="Tiến trình xác thực"
-          />
         </div>
 
-        {/* Current instruction */}
-        {instruction && (
-          <Card className="bg-primary-50 border-2 border-primary">
-            <CardBody className="text-center py-6">
-              <div className="text-6xl mb-3">{instruction.emoji}</div>
-              <h3 className="text-2xl font-bold text-primary mb-2">
-                {instruction.text}
-              </h3>
-              {headPose && (
-                <div className="space-y-2">
-                  {isPoseMatched(headPose.currentPose, currentChallenge.pose, headPose.confidence, 50) ? (
-                    <div className="space-y-2">
-                      <p className="text-lg font-bold text-success">
-                        ✅ Giữ tư thế... {poseHoldProgress}%
-                      </p>
-                      <div className="w-full bg-success-100 rounded-full h-3 overflow-hidden">
-                        <div
-                          className="bg-success h-full transition-all duration-100"
-                          style={{ width: `${poseHoldProgress}%` }}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-primary-600">
-                      Hiện tại: {headPose.currentPose} ({headPose.confidence}%)
-                    </p>
-                  )}
-                  <div className="flex gap-4 text-xs text-primary-600 justify-center">
-                    <span>Trái/Phải: {headPose.yaw}°</span>
-                    <span>Trên/Dưới: {headPose.pitch}°</span>
-                  </div>
-                  {!isPoseMatched(headPose.currentPose, currentChallenge.pose, headPose.confidence, 50) && (
-                    <p className="text-xs text-warning-600">
-                      💡 {currentChallenge.pose === 'left' || currentChallenge.pose === 'right'
-                        ? 'Quay đầu rõ hơn (cần ≥8°)'
-                        : 'Ngửa/cúi đầu rõ hơn (cần ≥8°)'}
-                    </p>
-                  )}
-                </div>
-              )}
-            </CardBody>
-          </Card>
-        )}
-
-        {/* Challenge list */}
-        <div className="grid grid-cols-5 gap-2">
-          {challenges.map((challenge, index) => (
-            <div
-              key={index}
-              className={`text-center p-2 rounded-lg border-2 transition-all ${
-                challenge.completed
-                  ? 'border-success bg-success-50'
-                  : index === currentChallengeIndex
-                  ? 'border-primary bg-primary-50 scale-110'
-                  : 'border-default-200'
-              }`}
-            >
-              <div className="text-2xl">
-                {formatPoseInstruction(challenge.pose).emoji}
-              </div>
-              {challenge.completed && <CheckCircle className="h-4 w-4 text-success mx-auto mt-1" />}
-            </div>
-          ))}
-        </div>
-
-        {/* Actions */}
-        <div className="flex gap-2">
-          <Button
-            color="default"
-            variant="flat"
-            startContent={<RotateCcw className="h-4 w-4" />}
-            onPress={handleRestart}
+        {/* Simple action button */}
+        <div className="flex justify-center">
+          <Button 
+            color="danger" 
+            variant="flat" 
+            onPress={onCancel}
+            size="lg"
           >
-            Làm lại
+            Cancel
           </Button>
-          <Button color="danger" variant="flat" onPress={onCancel} className="flex-1">
-            Hủy
-          </Button>
-        </div>
-
-        {/* Instructions */}
-        <div className="text-xs text-default-500 space-y-1">
-          <p className="font-semibold">💡 Hướng dẫn:</p>
-          <ul className="list-disc list-inside ml-2 space-y-1">
-            <li>Đảm bảo khuôn mặt nằm trong khung hình</li>
-            <li>Thực hiện các chuyển động theo hướng dẫn</li>
-            <li>Giữ mỗi tư thế trong 1-2 giây</li>
-            <li>Sau khi hoàn thành, hệ thống sẽ tự động chụp ảnh</li>
-          </ul>
         </div>
       </CardBody>
     </Card>

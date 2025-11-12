@@ -99,27 +99,27 @@ export function generateLivenessChallenges(): LivenessChallenge[] {
   return [
     {
       pose: 'left',
-      instruction: '👈 Quay đầu sang TRÁI',
+      instruction: '👈 Turn head to the LEFT',
       completed: false,
     },
     {
       pose: 'right',
-      instruction: '👉 Quay đầu sang PHẢI',
+      instruction: '👉 Turn head to the RIGHT',
       completed: false,
     },
     {
       pose: 'up',
-      instruction: '👆 Ngước đầu lên TRÊN',
+      instruction: '👆 Look UP',
       completed: false,
     },
     {
       pose: 'down',
-      instruction: '👇 Cúi đầu xuống DƯỚI',
+      instruction: '👇 Look DOWN',
       completed: false,
     },
     {
       pose: 'center',
-      instruction: '📸 Quay về GIỮA để chụp',
+      instruction: '📸 Return to CENTER to capture',
       completed: false,
     },
   ]
@@ -146,11 +146,11 @@ export function formatPoseInstruction(pose: HeadPose): {
   color: string
 } {
   const instructions = {
-    left: { emoji: '👈', text: 'Quay đầu sang TRÁI', color: 'primary' },
-    right: { emoji: '👉', text: 'Quay đầu sang PHẢI', color: 'primary' },
-    up: { emoji: '👆', text: 'Ngước đầu lên TRÊN', color: 'primary' },
-    down: { emoji: '👇', text: 'Cúi đầu xuống DƯỚI', color: 'primary' },
-    center: { emoji: '📸', text: 'Quay về GIỮA để chụp', color: 'success' },
+    left: { emoji: '👈', text: 'Turn head to the LEFT', color: 'primary' },
+    right: { emoji: '👉', text: 'Turn head to the RIGHT', color: 'primary' },
+    up: { emoji: '👆', text: 'Look UP', color: 'primary' },
+    down: { emoji: '👇', text: 'Look DOWN', color: 'primary' },
+    center: { emoji: '📸', text: 'Return to CENTER to capture', color: 'success' },
   }
 
   return instructions[pose]

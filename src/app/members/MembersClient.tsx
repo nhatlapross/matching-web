@@ -93,14 +93,14 @@ export default function MembersClient() {
         </h1>
       </div>
 
-      {/* Swipe Container with Blockchain Support (Default) */}
+      {/* Swipe Container with Blockchain Support (Optional) */}
       <SwipeContainerWithBlockchain
         initialMembers={data.members}
         avatarUrls={data.avatarUrls}
         onSwipeAction={handleSwipeAction}
         currentUserId={data.currentUserId}
         myProfileObjectId={data.myProfileObjectId}
-        enableBlockchainByDefault={true}
+        enableBlockchainByDefault={false}
       />
     </div>
   );

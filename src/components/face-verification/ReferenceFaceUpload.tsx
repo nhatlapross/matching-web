@@ -137,8 +137,11 @@ export default function ReferenceFaceUpload({ onUploadComplete }: ReferenceFaceU
           onUploadComplete()
         }
       } else {
-        setError(saveResult.error || 'Lỗi khi lưu ảnh khuôn mặt mẫu')
-        toast.error(saveResult.error || 'Lỗi khi lưu ảnh khuôn mặt mẫu')
+        const errorMsg = 'error' in saveResult 
+          ? (typeof saveResult.error === 'string' ? saveResult.error : 'Lỗi khi lưu ảnh khuôn mặt mẫu')
+          : 'Lỗi khi lưu ảnh khuôn mặt mẫu'
+        setError(errorMsg)
+        toast.error(errorMsg)
       }
     } catch (err) {
       console.error('Error uploading reference face:', err)
@@ -165,7 +168,10 @@ export default function ReferenceFaceUpload({ onUploadComplete }: ReferenceFaceU
         setIsEnabled(false)
         setUploadedAt(null)
       } else {
-        toast.error(result.error || 'Lỗi khi xóa ảnh')
+        const errorMsg = 'error' in result 
+          ? (typeof result.error === 'string' ? result.error : 'Lỗi khi xóa ảnh')
+          : 'Lỗi khi xóa ảnh'
+        toast.error(errorMsg)
       }
     } catch (error) {
       toast.error('Lỗi khi xóa ảnh khuôn mặt mẫu')
@@ -181,7 +187,10 @@ export default function ReferenceFaceUpload({ onUploadComplete }: ReferenceFaceU
         setIsEnabled(enabled)
         toast.success(enabled ? 'Đã bật xác thực khuôn mặt' : 'Đã tắt xác thực khuôn mặt')
       } else {
-        toast.error(result.error || 'Lỗi khi thay đổi cài đặt')
+        const errorMsg = 'error' in result 
+          ? (typeof result.error === 'string' ? result.error : 'Lỗi khi thay đổi cài đặt')
+          : 'Lỗi khi thay đổi cài đặt'
+        toast.error(errorMsg)
       }
     } catch (error) {
       toast.error('Lỗi khi thay đổi cài đặt xác thực')

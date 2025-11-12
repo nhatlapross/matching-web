@@ -34,6 +34,7 @@ export async function GET(request: Request) {
         description: true,
         created: true,
         updated: true,
+        interests: true, // ✅ Include interests for matching games
       },
       take: 20,
       orderBy: {

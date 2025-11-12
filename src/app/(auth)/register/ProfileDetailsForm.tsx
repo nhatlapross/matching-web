@@ -33,39 +33,45 @@ export default function ProfileDetailsForm() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="space-y-2">
-        <Label htmlFor="name">Name</Label>
-        <Input
-          id="name"
-          placeholder="Enter your name"
-          {...register("name")}
-          className={cn(errors.name && "border-red-500")}
-        />
-        {errors.name && (
-          <p className="text-sm text-red-500">{errors.name.message as string}</p>
-        )}
+      {/* Row 1: Name and Gender - 2 columns on medium+ screens */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="name">Name</Label>
+          <Input
+            id="name"
+            placeholder="Enter your name"
+            {...register("name")}
+            className={cn(errors.name && "border-red-500")}
+          />
+          {errors.name && (
+            <p className="text-sm text-red-500">{errors.name.message as string}</p>
+          )}
+        </div>
+        
+        <div className="space-y-2">
+          <Label htmlFor="gender">Gender</Label>
+          <Select
+            value={getValues("gender")}
+            onValueChange={(value) => setValue("gender", value, { shouldValidate: true })}
+          >
+            <SelectTrigger className={cn(errors.gender && "border-red-500")}>
+              <SelectValue placeholder="Select your gender" />
+            </SelectTrigger>
+            <SelectContent>
+              {genderList.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {errors.gender && (
+            <p className="text-sm text-red-500">{errors.gender.message as string}</p>
+          )}
+        </div>
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="gender">Gender</Label>
-        <Select
-          value={getValues("gender")}
-          onValueChange={(value) => setValue("gender", value, { shouldValidate: true })}
-        >
-          <SelectTrigger className={cn(errors.gender && "border-red-500")}>
-            <SelectValue placeholder="Select your gender" />
-          </SelectTrigger>
-          <SelectContent>
-            {genderList.map((item) => (
-              <SelectItem key={item.value} value={item.value}>
-                {item.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {errors.gender && (
-          <p className="text-sm text-red-500">{errors.gender.message as string}</p>
-        )}
-      </div>
+
+      {/* Row 2: Date of Birth - full width */}
       <div className="space-y-2">
         <Label htmlFor="dateOfBirth">Date of birth</Label>
         <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
@@ -110,6 +116,37 @@ export default function ProfileDetailsForm() {
           <p className="text-sm text-red-500">{errors.dateOfBirth.message as string}</p>
         )}
       </div>
+
+      {/* Row 3: City and Country - 2 columns on medium+ screens */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="city">City</Label>
+          <Input
+            id="city"
+            placeholder="Enter your city"
+            {...register("city")}
+            className={cn(errors.city && "border-red-500")}
+          />
+          {errors.city && (
+            <p className="text-sm text-red-500">{errors.city.message as string}</p>
+          )}
+        </div>
+        
+        <div className="space-y-2">
+          <Label htmlFor="country">Country</Label>
+          <Input
+            id="country"
+            placeholder="Enter your country"
+            {...register("country")}
+            className={cn(errors.country && "border-red-500")}
+          />
+          {errors.country && (
+            <p className="text-sm text-red-500">{errors.country.message as string}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Row 4: Description - full width */}
       <div className="space-y-2">
         <Label htmlFor="description">Description</Label>
         <Textarea
@@ -120,30 +157,6 @@ export default function ProfileDetailsForm() {
         />
         {errors.description && (
           <p className="text-sm text-red-500">{errors.description.message as string}</p>
-        )}
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="city">City</Label>
-        <Input
-          id="city"
-          placeholder="Enter your city"
-          {...register("city")}
-          className={cn(errors.city && "border-red-500")}
-        />
-        {errors.city && (
-          <p className="text-sm text-red-500">{errors.city.message as string}</p>
-        )}
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="country">Country</Label>
-        <Input
-          id="country"
-          placeholder="Enter your country"
-          {...register("country")}
-          className={cn(errors.country && "border-red-500")}
-        />
-        {errors.country && (
-          <p className="text-sm text-red-500">{errors.country.message as string}</p>
         )}
       </div>
     </div>

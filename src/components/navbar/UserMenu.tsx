@@ -13,7 +13,7 @@ import {
 import { useDisconnectWallet, useCurrentAccount } from "@mysten/dapp-kit";
 import Link from "next/link";
 import React, { useState, useEffect } from "react";
-import { User, Edit, LogOut, Wallet, Copy, Check } from "lucide-react";
+import { User, Edit, LogOut, Wallet, Copy, Check, Gift } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSession } from "next-auth/react";
 import { useAuthStore } from "@/hooks/useAuthStore";
@@ -199,6 +199,15 @@ export default function UserMenu({ userInfo }: Props) {
           >
             <Edit className="h-4 w-4" />
             <span>Edit profile</span>
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild className="cursor-pointer">
+          <Link
+            href="/gifts"
+            className="flex items-center gap-2 transition-colors duration-200"
+          >
+            <Gift className="h-4 w-4" />
+            <span>My Gifts</span>
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />

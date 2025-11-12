@@ -72,7 +72,7 @@ export default function TopNavGlass({ initialUserInfo, initialRole }: Props) {
           >
             <GiSelfLove size={36} className="text-pink-500 drop-shadow-sm" />
             <span className="text-2xl font-bold text-slate-800 tracking-tight">
-              MatchMe
+              Sui Match
             </span>
           </Link>
 

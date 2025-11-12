@@ -48,7 +48,7 @@ export default function SwipeContainerWithBlockchain(props: Props) {
       .filter((addr): addr is string => !!addr);
 
     if (addresses.length === 0) {
-      toast.warning("No blockchain profiles available, using standard mode");
+      console.log("No blockchain profiles available, using standard mode");
       setUseBlockchain(false);
       setIsInitializing(false);
       return;
@@ -61,7 +61,8 @@ export default function SwipeContainerWithBlockchain(props: Props) {
       setUseBlockchain(true);
       toast.success("🎲 Blockchain randomness enabled!");
     } else {
-      toast.warning("Blockchain mode failed, using standard mode");
+      // Silently fallback to standard mode (don't show warning toast)
+      console.warn("Blockchain mode failed, using standard mode:", result.error);
       setUseBlockchain(false);
     }
     

@@ -29,7 +29,7 @@ export default function CardWrapper({
 }: Props) {
   return (
     <div className="flex items-center justify-center vertical-center px-4">
-      <Card className="w-full max-w-md sm:max-w-lg md:max-w-xl lg:max-w-2xl xl:w-2/5 mx-auto p-4 sm:p-5">
+      <Card className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto p-4 sm:p-5">
         <CardHeader className="flex flex-col items-center justify-center">
           <div className="flex flex-col gap-2 items-center text-default">
             <div className="flex flex-row items-center gap-2 sm:gap-3">

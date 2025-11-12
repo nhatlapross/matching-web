@@ -2,13 +2,13 @@
 
 import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import {
   compareFaceLandmarks,
-  FaceLandmarks,
-  FaceVerificationResult,
   validateLandmarks,
 } from '@/utils/faceVerification'
-import { ActionResult } from '@/types'
+import type { FaceLandmarks, FaceVerificationResult } from '@/utils/faceVerification'
+import type { ActionResult } from '@/types'
 
 /**
  * Upload và lưu reference face (ảnh khuôn mặt mẫu)
@@ -117,7 +117,7 @@ export async function verifyPhotoWithReferenceFace(
     }
 
     // Compare faces
-    const referenceLandmarks = member.referenceFaceLandmarks as FaceLandmarks
+    const referenceLandmarks = member.referenceFaceLandmarks as unknown as FaceLandmarks
     const result = compareFaceLandmarks(referenceLandmarks, photoLandmarks)
 
     // Update photo với verification result
@@ -262,7 +262,7 @@ export async function deleteReferenceFace(): Promise<ActionResult<{ success: boo
       where: { id: member.id },
       data: {
         referenceFaceUrl: null,
-        referenceFaceLandmarks: null,
+        referenceFaceLandmarks: Prisma.JsonNull,
         faceVerificationEnabled: false,
         referenceFaceUploadedAt: null,
       },

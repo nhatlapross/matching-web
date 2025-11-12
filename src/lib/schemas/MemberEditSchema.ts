@@ -12,7 +12,8 @@ export const memberEditSchema = z.object({
     }),
     country: z.string().min(1, {
         message: 'Country is required'
-    })
+    }),
+    interests: z.string().optional() // Comma-separated interests
 })
 
 export type MemberEditSchema = z.infer<typeof memberEditSchema>

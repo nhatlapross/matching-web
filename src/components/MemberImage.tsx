@@ -17,13 +17,16 @@ import {
 } from "@/app/actions/adminActions";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
+import EncryptedImage from "./EncryptedImage";
 
 type Props = {
   photo: Photo | null;
+  isEncrypted?: boolean;
 };
 
 export default function MemberImage({
   photo,
+  isEncrypted = false,
 }: Props) {
   const role = useRole();
   const isAdmin = role === "ADMIN";
@@ -51,7 +54,21 @@ export default function MemberImage({
 
   return (
     <div>
-      {photo?.publicId ? (
+      {isEncrypted ? (
+        // Encrypted image with skeleton and error handling
+        <EncryptedImage
+          encryptedUrl={photo.url}
+          alt="Encrypted member photo"
+          width={300}
+          height={300}
+          className={clsx({
+            "opacity-40": !photo.isApproved && !isAdmin,
+          })}
+          onDecryptError={(error) => {
+            console.error('Decryption error:', error);
+          }}
+        />
+      ) : photo?.publicId ? (
         <CldImage
           alt="Image of member"
           src={photo.publicId}

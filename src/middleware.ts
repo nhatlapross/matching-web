@@ -17,10 +17,13 @@ export default auth((req) => {
     const isWellKnown = pathname.startsWith('/.well-known/');
 
     // Check if it's a static file (images, fonts, etc.) from public folder
-    const staticFileExtensions = /\.(png|jpg|jpeg|gif|svg|ico|webp|woff|woff2|ttf|eot|otf|mp4|webm|ogg|mp3|wav|flac|aac|wasm)$/i;
+    const staticFileExtensions = /\.(png|jpg|jpeg|gif|svg|ico|webp|woff|woff2|ttf|eot|otf|mp4|webm|ogg|mp3|wav|flac|aac|wasm|json)$/i;
     const isStaticFile = staticFileExtensions.test(pathname);
+    
+    // Also allow /models directory for face-api.js models
+    const isModelsPath = pathname.startsWith('/models/');
 
-    if (isPublic || isAdmin || isWellKnown || isStaticFile) {
+    if (isPublic || isAdmin || isWellKnown || isStaticFile || isModelsPath) {
         return NextResponse.next();
     }
 

@@ -47,7 +47,10 @@ export default function PhotoVerificationList() {
       if (result.status === 'success' && result.data) {
         setPhotos(result.data)
       } else {
-        toast.error(result.error || 'Lỗi khi tải danh sách ảnh')
+        const errorMsg = 'error' in result 
+          ? (typeof result.error === 'string' ? result.error : 'Lỗi khi tải danh sách ảnh')
+          : 'Lỗi khi tải danh sách ảnh'
+        toast.error(errorMsg)
       }
     } catch (error) {
       toast.error('Lỗi khi tải danh sách ảnh')
